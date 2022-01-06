@@ -2,7 +2,7 @@ import * as anchor from '@project-serum/anchor';
 import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
 import { assert } from 'chai';
 import { ConvergenceHack } from '../target/types/convergence_hack';
-import { PublicKey, Keypair, SystemProgram } from "@solana/web3.js";
+import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 
 
 describe('convergence-hack', () => {
@@ -10,7 +10,7 @@ describe('convergence-hack', () => {
   anchor.setProvider(anchor.Provider.env());
 
   const program = anchor.workspace.ConvergenceHack as anchor.Program<ConvergenceHack>;
-  const {provider} = program;
+  const {provider, programId} = program;
 
   let mintA: Token = null;
   let mintB: Token = null;
@@ -87,7 +87,12 @@ describe('convergence-hack', () => {
   it('Init deal', async () => {
     const escrow = new anchor.web3.Keypair();
 
-    // Add your test here.
+    const [pdaAccount] = await PublicKey.findProgramAddress([
+      program.provider.wallet.publicKey.toBuffer(),
+      makerA.toBuffer(),
+      escrow.publicKey.toBuffer(),
+    ], programId);
+
     const tx = await program.rpc.initializeDeal(
       [new anchor.BN(makerAmount)],
       [new anchor.BN(takerAmount)],
@@ -97,6 +102,9 @@ describe('convergence-hack', () => {
           maker: program.provider.wallet.publicKey,
           systemProgram: SystemProgram.programId,
           escrow: escrow.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          rent: SYSVAR_RENT_PUBKEY,
+          selfProgram: programId,
         },
         signers: [escrow],
         remainingAccounts: [{
@@ -107,7 +115,18 @@ describe('convergence-hack', () => {
           pubkey: takerB,
           isSigner: false,
           isWritable: false
-        }]
+        },
+        {
+          pubkey: pdaAccount,
+          isSigner: false,
+          isWritable: true
+        },
+        {
+          pubkey: mintA.publicKey,
+          isSigner: false,
+          isWritable: true
+        }
+      ]
       }
     );
     console.log("Your transaction signature", tx);
