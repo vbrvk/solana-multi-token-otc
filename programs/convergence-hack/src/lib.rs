@@ -36,7 +36,7 @@ pub mod convergence_hack {
         }
 
         // Init escrow account
-        // [..maker_accounts, ..taker_accounts, ..pda_accounts, ..mints] // TODO: add checks for mint
+        // [..maker_accounts, ..taker_accounts, ..pda_accounts, ..mints]
         let mut accounts = ctx.remaining_accounts.iter();
         let mut maker_token_accounts: Vec<&AccountInfo> = Vec::with_capacity(maker_amounts.len());
 
@@ -133,7 +133,7 @@ pub mod convergence_hack {
                 return Err(ErrorCode::BadMint.into());
             }
 
-            let ctx = CpiContext::new(
+            let init_account_ctx = CpiContext::new(
                 ctx.accounts.token_program.to_account_info().clone(),
                 token::InitializeAccount {
                     account: pda_account_info.clone(),
@@ -142,7 +142,18 @@ pub mod convergence_hack {
                     rent: ctx.accounts.rent.clone(),
                 },
             );
-            token::initialize_account(ctx)?;
+            token::initialize_account(init_account_ctx)?;
+
+            let transfer_tokens_ctx = CpiContext::new(
+                ctx.accounts.token_program.to_account_info().clone(),
+                token::Transfer {
+                    from: maker_token_accounts[i].clone(),
+                    to: pda_account_info.clone(),
+                    authority: ctx.accounts.maker.to_account_info().clone(),
+                },
+            );
+
+            token::transfer(transfer_tokens_ctx, maker_token_info.amount)?;
         }
 
         Ok(())
