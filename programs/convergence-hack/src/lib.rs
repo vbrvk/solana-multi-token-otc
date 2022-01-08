@@ -41,7 +41,7 @@ pub mod convergence_hack {
         let mut maker_token_accounts_from: Vec<(&AccountInfo, u64)> =
             Vec::with_capacity(maker_amounts.len());
 
-        for maker_amount in maker_amounts {
+        for maker_amount in &maker_amounts {
             let maker_account_from = accounts.next();
 
             if maker_account_from.is_none() {
@@ -49,14 +49,14 @@ pub mod convergence_hack {
             }
 
             let token_account = maker_account_from.unwrap();
-            maker_token_accounts_from.push((token_account, maker_amount));
+            maker_token_accounts_from.push((token_account, *maker_amount));
 
             if *token_account.owner != token::ID {
                 return Err(ErrorCode::BadTokenAccount.into());
             }
         }
 
-        for taker_amount in taker_amounts {
+        for taker_amount in &taker_amounts {
             let maker_account_to = accounts.next();
 
             if maker_account_to.is_none() {
@@ -71,7 +71,7 @@ pub mod convergence_hack {
 
             ctx.accounts.escrow.maker_request.push(TokenInfo {
                 pubkey: maker_account_to.key(),
-                amount: taker_amount,
+                amount: *taker_amount,
             })
         }
 
@@ -80,6 +80,7 @@ pub mod convergence_hack {
 
         // Move maker tokens to PDA token accounts
         for (maker_token_account_from, maker_amount) in maker_token_accounts_from.iter() {
+            // TODO: pass nonces as params
             let (pda, nonce) = Pubkey::find_program_address(
                 &[
                     &ctx.accounts.maker.key.to_bytes(),
@@ -130,7 +131,7 @@ pub mod convergence_hack {
                 ctx.accounts.token_program.to_account_info().clone(),
                 token::InitializeAccount {
                     account: pda_account_info.clone(),
-                    authority: ctx.accounts.self_program.clone(),
+                    authority: pda_account_info.clone(),
                     mint: mint.clone(),
                     rent: ctx.accounts.rent.to_account_info().clone(),
                 },
@@ -164,38 +165,80 @@ pub mod convergence_hack {
             return Err(ErrorCode::BadTaker.into());
         }
 
+        let mut accounts = ctx.remaining_accounts.iter();
+
+        // move taker funds to maker
+        for maker_req in &ctx.accounts.escrow.maker_request {
+            let taker_token_account = accounts.next();
+            let maker_token_account = accounts.next();
+
+            if taker_token_account.is_none() {
+                return Err(ErrorCode::NoTakerTokens.into());
+            }
+
+            if maker_token_account.is_none() {
+                return Err(ErrorCode::NoMakerTokens.into());
+            }
+
+            let taker_token_account = taker_token_account.unwrap();
+            let maker_token_account = maker_token_account.unwrap();
+
+            if token::accessor::mint(taker_token_account)
+                != token::accessor::mint(maker_token_account)
+            {
+                return Err(ErrorCode::TokenAccountsMotMatched.into());
+            }
+
+            let transfer_tokens_ctx = CpiContext::new(
+                ctx.accounts.token_program.to_account_info().clone(),
+                token::Transfer {
+                    from: taker_token_account.clone(),
+                    to: maker_token_account.clone(),
+                    authority: ctx.accounts.taker.to_account_info().clone(),
+                },
+            );
+
+            token::transfer(transfer_tokens_ctx, maker_req.amount)?;
+        }
+
+        // move maker funds to taker
+        for maker_lock in &ctx.accounts.escrow.maker_locked_funds {
+            let taker_token_account = accounts.next();
+            let pda_token_account = accounts.next();
+
+            if taker_token_account.is_none() {
+                return Err(ErrorCode::NoTakerTokens.into());
+            }
+
+            if pda_token_account.is_none() {
+                return Err(ErrorCode::NoMakerTokens.into());
+            }
+
+            let taker_token_account = taker_token_account.unwrap();
+            let pda_token_account = pda_token_account.unwrap();
+
+            if token::accessor::mint(taker_token_account)
+                != token::accessor::mint(pda_token_account)
+            {
+                return Err(ErrorCode::TokenAccountsMotMatched.into());
+            }
+
+            let transfer_tokens_ctx = CpiContext::new(
+                ctx.accounts.token_program.to_account_info().clone(),
+                token::Transfer {
+                    from: pda_token_account.clone(),
+                    to: taker_token_account.clone(),
+                    authority: ctx.accounts.taker.to_account_info().clone(),
+                },
+            );
+
+            token::transfer(transfer_tokens_ctx, maker_lock.amount)?;
+        }
+
+        // Close pda accounts and return lamports to maker
+
         Ok(())
     }
-}
-
-// token accounts should be passed through `remaining_accounts`
-// remaining_accounts = [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..mints]
-#[derive(Accounts)]
-pub struct InitializeDealParams<'info> {
-    #[account()]
-    maker: Signer<'info>,
-    #[account(init, payer = maker, space = 8 + EscrowAccount::LEN)]
-    escrow: Account<'info, EscrowAccount>,
-    // Programs
-    system_program: Program<'info, System>,
-    token_program: Program<'info, Token>,
-    rent: Sysvar<'info, Rent>,
-    self_program: AccountInfo<'info>,
-}
-
-// token accounts should be passed through `remaining_accounts`
-// remaining_accounts = [..maker_accounts, ..taker_accounts, ..pda_accounts, ..mints]
-#[derive(Accounts)]
-pub struct ExchangeParams<'info> {
-    #[account()]
-    maker: AccountInfo<'info>,
-    taker: Signer<'info>,
-    #[account(has_one = maker, owner = ID)]
-    escrow: Account<'info, EscrowAccount>,
-    // Programs
-    system_program: Program<'info, System>,
-    token_program: Program<'info, Token>,
-    self_program: AccountInfo<'info>,
 }
 
 #[derive(AnchorDeserialize, AnchorSerialize, Default, Clone, Copy)]
@@ -218,6 +261,35 @@ impl EscrowAccount {
     pub const LEN: usize = 32 + 32 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS * 2;
 }
 
+// token accounts should be passed through `remaining_accounts`
+// remaining_accounts = [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..mints]
+#[derive(Accounts)]
+pub struct InitializeDealParams<'info> {
+    #[account(mut)]
+    maker: Signer<'info>,
+    #[account(init, payer = maker, space = 8 + EscrowAccount::LEN)]
+    escrow: Account<'info, EscrowAccount>,
+    // Programs
+    system_program: Program<'info, System>,
+    token_program: Program<'info, Token>,
+    rent: Sysvar<'info, Rent>,
+}
+
+// token accounts should be passed through `remaining_accounts`
+// remaining_accounts = [..[taker_accounts_from, maker_accounts_to], ..[taker_accounts_to, pda_accounts]]
+#[derive(Accounts)]
+pub struct ExchangeParams<'info> {
+    #[account(mut)]
+    maker: AccountInfo<'info>,
+    #[account(mut)]
+    taker: Signer<'info>,
+    #[account(mut, has_one = maker, owner = ID, close = maker)]
+    escrow: Account<'info, EscrowAccount>,
+    // Programs
+    system_program: Program<'info, System>,
+    token_program: Program<'info, Token>,
+}
+
 #[error]
 pub enum ErrorCode {
     #[msg(format!("Maximum {} taker different tokens supported", EscrowAccount::LEN))]
@@ -238,4 +310,6 @@ pub enum ErrorCode {
     BadMint,
     #[msg("Bad taker account")]
     BadTaker,
+    #[msg("Taker and maker token accounts from different mint")]
+    TokenAccountsMotMatched,
 }

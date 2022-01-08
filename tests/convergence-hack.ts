@@ -12,6 +12,9 @@ describe('convergence-hack', () => {
   const program = anchor.workspace.ConvergenceHack as anchor.Program<ConvergenceHack>;
   const {provider, programId} = program;
 
+  const maker = Keypair.generate();
+  const taker = Keypair.generate();
+
   let mintA: Token = null;
   let mintB: Token = null;
 
@@ -27,11 +30,16 @@ describe('convergence-hack', () => {
   const mintAuthority = Keypair.generate();
 
   it("Initialize escrow state", async () => {
-    // Airdropping tokens to a payer.
-    await provider.connection.confirmTransaction(
-      await provider.connection.requestAirdrop(payer.publicKey, 10000000000),
-      "confirmed"
-    );
+    // Airdropping SOL.
+    const accountsToFund = [payer, maker, taker]
+
+    await Promise.all(accountsToFund.map(async acc => {
+      await provider.connection.confirmTransaction(
+        await provider.connection.requestAirdrop(acc.publicKey, 10000000000),
+        "confirmed"
+      )
+    }));
+
 
     mintA = await Token.createMint(
       provider.connection,
@@ -51,15 +59,15 @@ describe('convergence-hack', () => {
       TOKEN_PROGRAM_ID
     );
 
-    makerA = await mintA.createAccount(
-      provider.wallet.publicKey
+    makerA = await mintA.createAssociatedTokenAccount(
+      maker.publicKey
     );
-    takerA = await mintA.createAccount(provider.wallet.publicKey);
+    takerA = await mintA.createAssociatedTokenAccount(taker.publicKey);
 
-    makerB = await mintB.createAccount(
-      provider.wallet.publicKey
+    makerB = await mintB.createAssociatedTokenAccount(
+      maker.publicKey
     );
-    takerB = await mintB.createAccount(provider.wallet.publicKey);
+    takerB = await mintB.createAssociatedTokenAccount(taker.publicKey);
 
     await mintA.mintTo(
       makerA,
@@ -85,11 +93,11 @@ describe('convergence-hack', () => {
   });
 
   it('Init deal', async () => {
-    const escrow = new anchor.web3.Keypair();
+    const escrowState = new Keypair();
     const [pdaAccount] = await PublicKey.findProgramAddress([
-      program.provider.wallet.publicKey.toBuffer(),
+      maker.publicKey.toBuffer(),
       makerA.toBuffer(),
-      escrow.publicKey.toBuffer(),
+      escrowState.publicKey.toBuffer(),
     ], programId);
 
     await program.rpc.initializeDeal(
@@ -98,14 +106,13 @@ describe('convergence-hack', () => {
       null,
       {
         accounts: {
-          maker: program.provider.wallet.publicKey,
+          maker: maker.publicKey,
           systemProgram: SystemProgram.programId,
-          escrow: escrow.publicKey,
+          escrow: escrowState.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
           rent: SYSVAR_RENT_PUBKEY,
-          selfProgram: programId,
         },
-        signers: [escrow],
+        signers: [escrowState, maker],
         remainingAccounts: [{ // maker from
           pubkey: makerA,
           isSigner: false,
@@ -132,8 +139,63 @@ describe('convergence-hack', () => {
     const makerAmountAAfterInit = await mintA.getAccountInfo(makerA);
     assert.ok(makerAmountAAfterInit.amount.isZero())
 
-    const escrowA = await mintA.getAccountInfo(pdaAccount);
-    assert.ok(escrowA.amount.eq(new anchor.BN(makerAmountA)));
-    assert.ok(escrowA.owner.equals(programId))
+    const escrowLockA = await mintA.getAccountInfo(pdaAccount);
+    assert.ok(escrowLockA.amount.eq(new anchor.BN(makerAmountA)));
+    assert.ok(escrowLockA.owner.equals(pdaAccount))
+  });
+
+  it.skip('Execute deal', async () => {
+    const escrow = new anchor.web3.Keypair();
+    const [pdaAccount] = await PublicKey.findProgramAddress([
+      program.provider.wallet.publicKey.toBuffer(),
+      makerA.toBuffer(),
+      escrow.publicKey.toBuffer(),
+    ], programId);
+
+    await program.rpc.exchange(
+      {
+        accounts: {
+          maker: maker.publicKey,
+          taker: taker.publicKey,
+          systemProgram: SystemProgram.programId,
+          escrow: escrow.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+        signers: [taker],
+        remainingAccounts: [{ // taker from
+          pubkey: takerB,
+          isSigner: false,
+          isWritable: true
+        }, {
+          pubkey: makerB, // maker to
+          isSigner: false,
+          isWritable: true
+        },
+        {
+          pubkey: takerA, // taker to
+          isSigner: false,
+          isWritable: true
+        },
+        {
+          pubkey: pdaAccount, // taker from
+          isSigner: false,
+          isWritable: true
+        },
+      ]
+      }
+    );
+
+    const finalTakerAmountA = await mintA.getAccountInfo(takerA);
+    const finalTakerAmountB = await mintB.getAccountInfo(takerB);
+    assert.ok(finalTakerAmountA.amount.eq(new anchor.BN(makerAmountA)))
+    assert.ok(finalTakerAmountB.amount.isZero())
+
+    const finalMakerAmountA = await mintA.getAccountInfo(makerA);
+    const finalMakerAmountB = await mintB.getAccountInfo(makerB);
+    assert.ok(finalMakerAmountA.amount.isZero())
+    assert.ok(finalMakerAmountB.amount.eq(new anchor.BN(takerAmountB)))
+
+    const escrowInfo = await provider.connection.getAccountInfo(escrow.publicKey);
+    assert.isNull(escrowInfo);
   });
 });
