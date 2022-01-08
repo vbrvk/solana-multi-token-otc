@@ -102,6 +102,8 @@ describe('convergence-hack', () => {
     ], programId);
 
     await program.rpc.initializeDeal(
+      new anchor.BN(0), // lamports from maker
+      new anchor.BN(0), // lamports to maker
       [new anchor.BN(makerAmountA)],
       [new anchor.BN(takerAmountB)],
       null,
@@ -149,7 +151,7 @@ describe('convergence-hack', () => {
   });
 
   it('Execute deal', async () => {
-    const [{ pubkey: pdaAccount }] = (await program.account.escrowAccount.fetch(escrowState.publicKey)).makerLockedFunds as {pubkey: PublicKey}[];
+    const [{ pubkey: pdaAccount }] = (await program.account.escrowAccount.fetch(escrowState.publicKey)).makerLockedTokens as {pubkey: PublicKey}[];
 
     await program.rpc.exchange(
       {

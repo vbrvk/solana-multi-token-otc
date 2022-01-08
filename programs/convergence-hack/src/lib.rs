@@ -7,12 +7,14 @@ declare_id!("6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd");
 
 #[program]
 pub mod convergence_hack {
-    use anchor_lang::solana_program::{self, system_program};
+    use anchor_lang::solana_program::{self};
 
     use super::*;
 
     pub fn initialize_deal<'info>(
         ctx: Context<'_, '_, '_, 'info, InitializeDealParams<'info>>,
+        maker_lamports_offer: u64,
+        maker_lamports_request: u64,
         maker_amounts: Vec<u64>,
         taker_amounts: Vec<u64>,
         taker_key: Option<Pubkey>,
@@ -36,6 +38,9 @@ pub mod convergence_hack {
         }
 
         // Init escrow account
+        ctx.accounts.escrow.maker_lamports_offer = maker_lamports_offer;
+        ctx.accounts.escrow.maker_lamports_request = maker_lamports_request;
+
         // [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..mints]
         let mut accounts = ctx.remaining_accounts.iter();
         let mut maker_token_accounts_from: Vec<(&AccountInfo, u64)> =
@@ -69,7 +74,7 @@ pub mod convergence_hack {
                 return Err(ErrorCode::BadTokenAccount.into());
             }
 
-            ctx.accounts.escrow.maker_request.push(TokenInfo {
+            ctx.accounts.escrow.maker_tokens_request.push(TokenInfo {
                 pubkey: maker_account_to.key(),
                 amount: *taker_amount,
             })
@@ -77,6 +82,23 @@ pub mod convergence_hack {
 
         ctx.accounts.escrow.taker = taker_key;
         ctx.accounts.escrow.maker = *ctx.accounts.maker.key;
+
+        // Move sol to escrow account
+
+        if maker_lamports_offer > 0 {
+            solana_program::program::invoke(
+                &solana_program::system_instruction::transfer(
+                    &ctx.accounts.maker.key(),
+                    &ctx.accounts.escrow.key(),
+                    maker_lamports_offer,
+                ),
+                &[
+                    ctx.accounts.maker.to_account_info(),
+                    ctx.accounts.escrow.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
 
         // Move maker tokens to PDA token accounts
         for (maker_token_account_from, maker_amount) in maker_token_accounts_from.iter() {
@@ -151,7 +173,7 @@ pub mod convergence_hack {
 
             token::transfer(transfer_tokens_ctx, *maker_amount)?;
 
-            ctx.accounts.escrow.maker_locked_funds.push(TokenInfo {
+            ctx.accounts.escrow.maker_locked_tokens.push(TokenInfo {
                 amount: *maker_amount,
                 pubkey: pda,
             })
@@ -170,7 +192,7 @@ pub mod convergence_hack {
         let mut accounts = ctx.remaining_accounts.iter();
 
         // move taker funds to maker
-        for maker_req in &ctx.accounts.escrow.maker_request {
+        for maker_req in &ctx.accounts.escrow.maker_tokens_request {
             let taker_token_account = accounts.next();
             let maker_token_account = accounts.next();
 
@@ -204,7 +226,7 @@ pub mod convergence_hack {
         }
 
         // move maker funds to taker
-        for maker_lock in &ctx.accounts.escrow.maker_locked_funds {
+        for maker_lock in &ctx.accounts.escrow.maker_locked_tokens {
             let taker_token_account = accounts.next();
             let pda_token_account = accounts.next();
 
@@ -275,15 +297,17 @@ pub struct TokenInfo {
 #[account]
 #[derive(Default)]
 pub struct EscrowAccount {
-    maker: Pubkey,                      // 32
-    taker: Option<Pubkey>,              // 32
-    maker_request: Vec<TokenInfo>,      // 40 * MAX_TOKENS
-    maker_locked_funds: Vec<TokenInfo>, // 40 * MAX_TOKENS
+    maker: Pubkey,                        // 32
+    taker: Option<Pubkey>,                // 32
+    maker_lamports_offer: u64,            // 8
+    maker_lamports_request: u64,          // 8
+    maker_tokens_request: Vec<TokenInfo>, // 40 * MAX_TOKENS
+    maker_locked_tokens: Vec<TokenInfo>,  // 40 * MAX_TOKENS
 }
 
 impl EscrowAccount {
     pub const MAX_TOKENS: usize = 20;
-    pub const LEN: usize = 32 + 32 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS * 2;
+    pub const LEN: usize = 32 + 32 + 8 + 8 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS * 2;
 }
 
 // token accounts should be passed through `remaining_accounts`
