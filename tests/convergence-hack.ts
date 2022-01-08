@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
-import { assert, expect } from 'chai';
+import { assert } from 'chai';
 import { ConvergenceHack } from '../target/types/convergence_hack';
 import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 
@@ -9,6 +9,7 @@ describe('convergence-hack', () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
+  // @ts-ignore
   const program = anchor.workspace.ConvergenceHack as anchor.Program<ConvergenceHack>;
   const {provider, programId} = program;
 
@@ -28,6 +29,7 @@ describe('convergence-hack', () => {
 
   const payer = Keypair.generate();
   const mintAuthority = Keypair.generate();
+  const escrowState = new Keypair();
 
   it("Initialize escrow state", async () => {
     // Airdropping SOL.
@@ -93,10 +95,9 @@ describe('convergence-hack', () => {
   });
 
   it('Init deal', async () => {
-    const escrowState = new Keypair();
     const [pdaAccount] = await PublicKey.findProgramAddress([
       maker.publicKey.toBuffer(),
-      makerA.toBuffer(),
+      mintA.publicKey.toBuffer(),
       escrowState.publicKey.toBuffer(),
     ], programId);
 
@@ -142,15 +143,13 @@ describe('convergence-hack', () => {
     const escrowLockA = await mintA.getAccountInfo(pdaAccount);
     assert.ok(escrowLockA.amount.eq(new anchor.BN(makerAmountA)));
     assert.ok(escrowLockA.owner.equals(pdaAccount))
+
+    const escrowStateInfo = await program.account.escrowAccount.fetch(escrowState.publicKey);
+    assert.ok(escrowStateInfo.maker.equals(maker.publicKey))
   });
 
-  it.skip('Execute deal', async () => {
-    const escrow = new anchor.web3.Keypair();
-    const [pdaAccount] = await PublicKey.findProgramAddress([
-      program.provider.wallet.publicKey.toBuffer(),
-      makerA.toBuffer(),
-      escrow.publicKey.toBuffer(),
-    ], programId);
+  it('Execute deal', async () => {
+    const [{ pubkey: pdaAccount }] = (await program.account.escrowAccount.fetch(escrowState.publicKey)).makerLockedFunds as {pubkey: PublicKey}[];
 
     await program.rpc.exchange(
       {
@@ -158,7 +157,7 @@ describe('convergence-hack', () => {
           maker: maker.publicKey,
           taker: taker.publicKey,
           systemProgram: SystemProgram.programId,
-          escrow: escrow.publicKey,
+          escrow: escrowState.publicKey,
           tokenProgram: TOKEN_PROGRAM_ID,
         },
         signers: [taker],
@@ -195,7 +194,7 @@ describe('convergence-hack', () => {
     assert.ok(finalMakerAmountA.amount.isZero())
     assert.ok(finalMakerAmountB.amount.eq(new anchor.BN(takerAmountB)))
 
-    const escrowInfo = await provider.connection.getAccountInfo(escrow.publicKey);
+    const escrowInfo = await provider.connection.getAccountInfo(escrowState.publicKey);
     assert.isNull(escrowInfo);
   });
 });

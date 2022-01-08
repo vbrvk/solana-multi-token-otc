@@ -7,7 +7,7 @@ declare_id!("6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd");
 
 #[program]
 pub mod convergence_hack {
-    use anchor_lang::solana_program;
+    use anchor_lang::solana_program::{self, system_program};
 
     use super::*;
 
@@ -81,11 +81,13 @@ pub mod convergence_hack {
         // Move maker tokens to PDA token accounts
         for (maker_token_account_from, maker_amount) in maker_token_accounts_from.iter() {
             // TODO: pass nonces as params
+            let maker_token_from_mint = token::accessor::mint(maker_token_account_from)?;
+
             let (pda, nonce) = Pubkey::find_program_address(
                 &[
                     &ctx.accounts.maker.key.to_bytes(),
-                    &maker_token_account_from.key().to_bytes(),
-                    &ctx.accounts.escrow.as_ref().key.to_bytes(),
+                    &maker_token_from_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
                 ],
                 ctx.program_id,
             );
@@ -115,15 +117,15 @@ pub mod convergence_hack {
                 ],
                 &[&[
                     &ctx.accounts.maker.key.to_bytes(),
-                    &maker_token_account_from.key().to_bytes(),
-                    &ctx.accounts.escrow.as_ref().key.to_bytes(),
+                    &maker_token_from_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
                     &[nonce],
                 ]],
             )?;
 
             let mint = accounts.next().unwrap();
 
-            if *mint.key != token::accessor::mint(maker_token_account_from)? {
+            if *mint.key != maker_token_from_mint {
                 return Err(ErrorCode::BadMint.into());
             }
 
@@ -217,22 +219,45 @@ pub mod convergence_hack {
             let taker_token_account = taker_token_account.unwrap();
             let pda_token_account = pda_token_account.unwrap();
 
-            if token::accessor::mint(taker_token_account)
-                != token::accessor::mint(pda_token_account)
-            {
+            let pda_token_mint = token::accessor::mint(pda_token_account)?;
+
+            if token::accessor::mint(taker_token_account)? != pda_token_mint {
                 return Err(ErrorCode::TokenAccountsMotMatched.into());
             }
 
-            let transfer_tokens_ctx = CpiContext::new(
-                ctx.accounts.token_program.to_account_info().clone(),
-                token::Transfer {
-                    from: pda_token_account.clone(),
-                    to: taker_token_account.clone(),
-                    authority: ctx.accounts.taker.to_account_info().clone(),
-                },
+            // TODO: pass nonces as params
+            let (pda, nonce) = Pubkey::find_program_address(
+                &[
+                    &ctx.accounts.maker.key.to_bytes(),
+                    &pda_token_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                ],
+                ctx.program_id,
             );
 
-            token::transfer(transfer_tokens_ctx, maker_lock.amount)?;
+            let transfer_tokens_ix = spl_token::instruction::transfer(
+                &ctx.accounts.token_program.key(),
+                &pda,
+                &taker_token_account.key(),
+                &pda,
+                &[&pda],
+                maker_lock.amount,
+            )?;
+
+            solana_program::program::invoke_signed(
+                &transfer_tokens_ix,
+                &[
+                    taker_token_account.clone(),
+                    pda_token_account.clone(),
+                    ctx.accounts.token_program.to_account_info().clone(),
+                ],
+                &[&[
+                    &ctx.accounts.maker.key.to_bytes(),
+                    &pda_token_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                    &[nonce],
+                ]],
+            )?;
         }
 
         // Close pda accounts and return lamports to maker
@@ -283,7 +308,7 @@ pub struct ExchangeParams<'info> {
     maker: AccountInfo<'info>,
     #[account(mut)]
     taker: Signer<'info>,
-    #[account(mut, has_one = maker, owner = ID, close = maker)]
+    #[account(mut, has_one = maker, close = maker)]
     escrow: Account<'info, EscrowAccount>,
     // Programs
     system_program: Program<'info, System>,
