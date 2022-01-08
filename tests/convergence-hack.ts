@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
-import { assert } from 'chai';
+import { assert, expect } from 'chai';
 import { ConvergenceHack } from '../target/types/convergence_hack';
 import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
 
@@ -20,8 +20,8 @@ describe('convergence-hack', () => {
   let makerB: PublicKey = null;
   let takerB: PublicKey = null;
 
-  const makerAmount = 500;
-  const takerAmount = 1000;
+  const makerAmountA = 500;
+  const takerAmountB = 1000;
 
   const payer = Keypair.generate();
   const mintAuthority = Keypair.generate();
@@ -65,14 +65,14 @@ describe('convergence-hack', () => {
       makerA,
       mintAuthority.publicKey,
       [mintAuthority],
-      makerAmount
+      makerAmountA
     );
 
     await mintB.mintTo(
       takerB,
       mintAuthority.publicKey,
       [mintAuthority],
-      takerAmount
+      takerAmountB
     );
 
     let _initializerTokenAccountA = await mintA.getAccountInfo(
@@ -80,22 +80,21 @@ describe('convergence-hack', () => {
     );
     let _takerTokenAccountB = await mintB.getAccountInfo(takerB);
 
-    assert.ok(_initializerTokenAccountA.amount.toNumber() == makerAmount);
-    assert.ok(_takerTokenAccountB.amount.toNumber() == takerAmount);
+    assert.ok(_initializerTokenAccountA.amount.toNumber() == makerAmountA);
+    assert.ok(_takerTokenAccountB.amount.toNumber() == takerAmountB);
   });
 
   it('Init deal', async () => {
     const escrow = new anchor.web3.Keypair();
-
     const [pdaAccount] = await PublicKey.findProgramAddress([
       program.provider.wallet.publicKey.toBuffer(),
       makerA.toBuffer(),
       escrow.publicKey.toBuffer(),
     ], programId);
 
-    const tx = await program.rpc.initializeDeal(
-      [new anchor.BN(makerAmount)],
-      [new anchor.BN(takerAmount)],
+    await program.rpc.initializeDeal(
+      [new anchor.BN(makerAmountA)],
+      [new anchor.BN(takerAmountB)],
       null,
       {
         accounts: {
@@ -107,12 +106,12 @@ describe('convergence-hack', () => {
           selfProgram: programId,
         },
         signers: [escrow],
-        remainingAccounts: [{
+        remainingAccounts: [{ // maker from
           pubkey: makerA,
           isSigner: false,
           isWritable: true
         }, {
-          pubkey: takerB,
+          pubkey: makerB, // maker to
           isSigner: false,
           isWritable: false
         },
@@ -129,6 +128,12 @@ describe('convergence-hack', () => {
       ]
       }
     );
-    console.log("Your transaction signature", tx);
+
+    const makerAmountAAfterInit = await mintA.getAccountInfo(makerA);
+    assert.ok(makerAmountAAfterInit.amount.isZero())
+
+    const escrowA = await mintA.getAccountInfo(pdaAccount);
+    assert.ok(escrowA.amount.eq(new anchor.BN(makerAmountA)));
+    assert.ok(escrowA.owner.equals(programId))
   });
 });
