@@ -7,7 +7,7 @@ declare_id!("6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd");
 
 #[program]
 pub mod convergence_hack {
-    use anchor_lang::solana_program::{self};
+    use anchor_lang::solana_program;
 
     use super::*;
 
@@ -217,8 +217,8 @@ pub mod convergence_hack {
             token::transfer(transfer_tokens_ctx, maker_req.amount)?;
         }
 
-        // move maker funds to taker
         for maker_lock in &ctx.accounts.escrow.maker_locked_tokens {
+            // move maker funds to taker
             let taker_token_account = accounts.next();
             let pda_token_account = accounts.next();
 
@@ -272,10 +272,38 @@ pub mod convergence_hack {
                     &[nonce],
                 ]],
             )?;
+
+            // Close pda accounts and return lamports to maker
+            let close_account_ix = spl_token::instruction::close_account(
+                &ctx.accounts.token_program.key(),
+                &pda,
+                &ctx.accounts.maker.key(),
+                &pda,
+                &[&pda],
+            )?;
+
+            solana_program::program::invoke_signed(
+                &close_account_ix,
+                &[
+                    ctx.accounts.maker.clone(),
+                    pda_token_account.clone(),
+                    ctx.accounts.token_program.to_account_info().clone(),
+                ],
+                &[&[
+                    &ctx.accounts.maker.key.to_bytes(),
+                    &pda_token_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                    &[nonce],
+                ]],
+            )?;
         }
 
-        // Close pda accounts and return lamports to maker
+        Ok(())
+    }
 
+    pub fn close_deal<'info>(
+        ctx: Context<'_, '_, '_, 'info, CloseDealParams<'info>>,
+    ) -> Result<()> {
         Ok(())
     }
 }
@@ -336,6 +364,18 @@ pub struct ExchangeParams<'info> {
     maker: AccountInfo<'info>,
     #[account(mut)]
     taker: Signer<'info>,
+    #[account(mut, has_one = maker, close = maker)]
+    escrow: Account<'info, EscrowAccount>,
+    // Programs
+    system_program: Program<'info, System>,
+    token_program: Program<'info, Token>,
+}
+
+// remaining_accounts = [..maker_accounts_from, ..pda_accounts]
+#[derive(Accounts)]
+pub struct CloseDealParams<'info> {
+    #[account(mut)]
+    maker: Signer<'info>,
     #[account(mut, has_one = maker, close = maker)]
     escrow: Account<'info, EscrowAccount>,
     // Programs

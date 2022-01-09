@@ -198,5 +198,8 @@ describe('convergence-hack', () => {
 
     const escrowInfo = await provider.connection.getAccountInfo(escrowState.publicKey);
     assert.isNull(escrowInfo);
+
+    const pdaInfo = await provider.connection.getAccountInfo(pdaAccount);
+    assert.isNull(pdaInfo);
   });
 });
