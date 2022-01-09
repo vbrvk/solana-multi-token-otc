@@ -7,7 +7,7 @@ declare_id!("6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd");
 
 #[program]
 pub mod convergence_hack {
-    use anchor_lang::solana_program::{self};
+    use anchor_lang::solana_program;
 
     use super::*;
 
@@ -20,14 +20,6 @@ pub mod convergence_hack {
         taker_key: Option<Pubkey>,
     ) -> Result<()> {
         // Validate incoming data
-
-        if taker_amounts.len() > EscrowAccount::MAX_TOKENS {
-            return Err(ErrorCode::TooMuchTakerTokens.into());
-        }
-
-        if maker_amounts.len() > EscrowAccount::MAX_TOKENS {
-            return Err(ErrorCode::TooMuchMakerTokens.into());
-        }
 
         if taker_amounts.is_empty() {
             return Err(ErrorCode::NoTakerTokens.into());
@@ -225,8 +217,8 @@ pub mod convergence_hack {
             token::transfer(transfer_tokens_ctx, maker_req.amount)?;
         }
 
-        // move maker funds to taker
         for maker_lock in &ctx.accounts.escrow.maker_locked_tokens {
+            // move maker funds to taker
             let taker_token_account = accounts.next();
             let pda_token_account = accounts.next();
 
@@ -280,10 +272,38 @@ pub mod convergence_hack {
                     &[nonce],
                 ]],
             )?;
+
+            // Close pda accounts and return lamports to maker
+            let close_account_ix = spl_token::instruction::close_account(
+                &ctx.accounts.token_program.key(),
+                &pda,
+                &ctx.accounts.maker.key(),
+                &pda,
+                &[&pda],
+            )?;
+
+            solana_program::program::invoke_signed(
+                &close_account_ix,
+                &[
+                    ctx.accounts.maker.clone(),
+                    pda_token_account.clone(),
+                    ctx.accounts.token_program.to_account_info().clone(),
+                ],
+                &[&[
+                    &ctx.accounts.maker.key.to_bytes(),
+                    &pda_token_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                    &[nonce],
+                ]],
+            )?;
         }
 
-        // Close pda accounts and return lamports to maker
+        Ok(())
+    }
 
+    pub fn close_deal<'info>(
+        ctx: Context<'_, '_, '_, 'info, CloseDealParams<'info>>,
+    ) -> Result<()> {
         Ok(())
     }
 }
@@ -301,22 +321,34 @@ pub struct EscrowAccount {
     taker: Option<Pubkey>,                // 32
     maker_lamports_offer: u64,            // 8
     maker_lamports_request: u64,          // 8
-    maker_tokens_request: Vec<TokenInfo>, // 40 * MAX_TOKENS
-    maker_locked_tokens: Vec<TokenInfo>,  // 40 * MAX_TOKENS
+    maker_tokens_request: Vec<TokenInfo>, // 4 (vec len https://borsh.io/) + 40 * MAX_TOKENS
+    maker_locked_tokens: Vec<TokenInfo>,  // 4 + 40 * MAX_TOKENS
 }
 
 impl EscrowAccount {
-    pub const MAX_TOKENS: usize = 20;
-    pub const LEN: usize = 32 + 32 + 8 + 8 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS * 2;
+    pub fn space(amounts_from: &[u64], amounts_to: &[u64]) -> usize {
+        32 + // maker
+        32 + // taker
+        8 + // maker_lamports_offer
+        8 + // maker_lamports_request
+        4 + size_of::<TokenInfo>() *amounts_to.len() + // maker_locked_tokens
+        4 + size_of::<TokenInfo>() *amounts_from.len() // maker_tokens_request
+    }
 }
 
 // token accounts should be passed through `remaining_accounts`
 // remaining_accounts = [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..mints]
 #[derive(Accounts)]
+#[instruction(
+    maker_lamports_offer: u64,
+    maker_lamports_request: u64,
+    maker_amounts: Vec<u64>,
+    taker_amounts: Vec<u64>
+)]
 pub struct InitializeDealParams<'info> {
     #[account(mut)]
     maker: Signer<'info>,
-    #[account(init, payer = maker, space = 8 + EscrowAccount::LEN)]
+    #[account(init, payer = maker, space = 8 + EscrowAccount::space(&maker_amounts, &taker_amounts))]
     escrow: Account<'info, EscrowAccount>,
     // Programs
     system_program: Program<'info, System>,
@@ -339,12 +371,20 @@ pub struct ExchangeParams<'info> {
     token_program: Program<'info, Token>,
 }
 
+// remaining_accounts = [..maker_accounts_from, ..pda_accounts]
+#[derive(Accounts)]
+pub struct CloseDealParams<'info> {
+    #[account(mut)]
+    maker: Signer<'info>,
+    #[account(mut, has_one = maker, close = maker)]
+    escrow: Account<'info, EscrowAccount>,
+    // Programs
+    system_program: Program<'info, System>,
+    token_program: Program<'info, Token>,
+}
+
 #[error]
 pub enum ErrorCode {
-    #[msg(format!("Maximum {} taker different tokens supported", EscrowAccount::LEN))]
-    TooMuchTakerTokens,
-    #[msg(format!("Maximum {} maker different tokens supported", EscrowAccount::LEN))]
-    TooMuchMakerTokens,
     #[msg("No taker tokens was provided")]
     NoTakerTokens,
     #[msg("No maker tokens was provided")]

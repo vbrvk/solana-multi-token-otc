@@ -211,5 +211,8 @@ describe("convergence-hack", () => {
       escrowState.publicKey
     );
     assert.isNull(escrowInfo);
+
+    const pdaInfo = await provider.connection.getAccountInfo(pdaAccount);
+    assert.isNull(pdaInfo);
   });
 });
