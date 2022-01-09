@@ -21,14 +21,6 @@ pub mod convergence_hack {
     ) -> Result<()> {
         // Validate incoming data
 
-        if taker_amounts.len() > EscrowAccount::MAX_TOKENS {
-            return Err(ErrorCode::TooMuchTakerTokens.into());
-        }
-
-        if maker_amounts.len() > EscrowAccount::MAX_TOKENS {
-            return Err(ErrorCode::TooMuchMakerTokens.into());
-        }
-
         if taker_amounts.is_empty() {
             return Err(ErrorCode::NoTakerTokens.into());
         }
@@ -306,18 +298,29 @@ pub struct EscrowAccount {
 }
 
 impl EscrowAccount {
-    pub const MAX_TOKENS: usize = 20;
-    pub const LEN: usize =
-        32 + 32 + 8 + 8 + (4 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS) * 2;
+    pub fn space(amounts_from: &Vec<u64>, amounts_to: &Vec<u64>) -> usize {
+        32 + // maker
+        32 + // taker
+        8 + // maker_lamports_offer
+        8 + // maker_lamports_request
+        4 + size_of::<TokenInfo>() *amounts_to.len() + // maker_locked_tokens
+        4 + size_of::<TokenInfo>() *amounts_from.len() // maker_tokens_request
+    }
 }
 
 // token accounts should be passed through `remaining_accounts`
 // remaining_accounts = [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..mints]
 #[derive(Accounts)]
+#[instruction(
+    maker_lamports_offer: u64,
+    maker_lamports_request: u64,
+    maker_amounts: Vec<u64>,
+    taker_amounts: Vec<u64>
+)]
 pub struct InitializeDealParams<'info> {
     #[account(mut)]
     maker: Signer<'info>,
-    #[account(init, payer = maker, space = 8 + EscrowAccount::LEN)]
+    #[account(init, payer = maker, space = 8 + EscrowAccount::space(&maker_amounts, &taker_amounts))]
     escrow: Account<'info, EscrowAccount>,
     // Programs
     system_program: Program<'info, System>,
@@ -342,10 +345,6 @@ pub struct ExchangeParams<'info> {
 
 #[error]
 pub enum ErrorCode {
-    #[msg(format!("Maximum {} taker different tokens supported", EscrowAccount::LEN))]
-    TooMuchTakerTokens,
-    #[msg(format!("Maximum {} maker different tokens supported", EscrowAccount::LEN))]
-    TooMuchMakerTokens,
     #[msg("No taker tokens was provided")]
     NoTakerTokens,
     #[msg("No maker tokens was provided")]
