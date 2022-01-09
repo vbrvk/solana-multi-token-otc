@@ -298,7 +298,7 @@ pub struct EscrowAccount {
 }
 
 impl EscrowAccount {
-    pub fn space(amounts_from: &Vec<u64>, amounts_to: &Vec<u64>) -> usize {
+    pub fn space(amounts_from: &[u64], amounts_to: &[u64]) -> usize {
         32 + // maker
         32 + // taker
         8 + // maker_lamports_offer
