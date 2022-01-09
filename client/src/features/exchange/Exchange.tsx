@@ -1,4 +1,5 @@
-import { Alert, Col, Row, Spin, Typography } from 'antd'
+import { TokenInfo } from '@solana/spl-token-registry'
+import { Alert, Col, Spin, Typography } from 'antd'
 import { useAppDispatch, useAppSelector } from 'app/hooks'
 import ExchangeForm from 'features/exchange/ExchangeForm'
 import { exchangeSelector, getTokens } from 'features/exchange/exchangeSlice'
@@ -9,13 +10,13 @@ import './Exchange.scss'
 interface IProps {}
 
 export interface ICurrencyValue {
-  currency: string
+  currency: TokenInfo
   number: number
 }
 
 export interface IExchangeForm {
-  send: ICurrencyValue
-  receive: ICurrencyValue
+  send: ICurrencyValue[]
+  receive: ICurrencyValue[]
 }
 
 const Exchange: React.FC<IProps> = () => {
@@ -28,14 +29,22 @@ const Exchange: React.FC<IProps> = () => {
 
   const initialValues: IExchangeForm = useMemo(() => {
     return {
-      send: {
-        number: 10,
-        currency: tokens[0]?.address,
-      },
-      receive: {
-        number: 20,
-        currency: tokens[1]?.address,
-      },
+      send: [
+        {
+          number: 10,
+          currency: tokens[0],
+        },
+        {
+          number: 10,
+          currency: tokens[1],
+        },
+      ],
+      receive: [
+        {
+          number: 20,
+          currency: tokens[2],
+        },
+      ],
     }
   }, [tokens])
 
@@ -53,12 +62,12 @@ const Exchange: React.FC<IProps> = () => {
 
   return (
     <div className="Exchange">
-      <Col>
+      <Col className="Exchange__headings">
         <Typography.Title level={1}>Exchange</Typography.Title>
         <Typography.Title level={2}>Description</Typography.Title>
       </Col>
 
-      <Col flex={1}>
+      <Col>
         <ExchangeForm initialValues={initialValues} onSubmit={handleFormSubmit} />
       </Col>
     </div>

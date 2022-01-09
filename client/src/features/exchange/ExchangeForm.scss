@@ -1,0 +1,13 @@
+@import "src/scss/variables";
+
+.ExchangeForm {
+  margin-bottom: 36px;
+
+  &__switch-button {
+    align-self: center;
+
+    &.ant-btn {
+      margin: 0 16px;
+    }
+  }
+}

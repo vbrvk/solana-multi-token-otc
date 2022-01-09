@@ -4,7 +4,8 @@
     "paths": {
       "app/*": ["src/app/*"],
       "features/*": ["src/features/*"],
-      "models/*": ["src/models/*"]
+      "models/*": ["src/models/*"],
+      "hooks/*": ["src/hooks/*"]
     }
   }
 }

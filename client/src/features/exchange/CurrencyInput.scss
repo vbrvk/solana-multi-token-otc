@@ -3,13 +3,22 @@
 .CurrencyInput {
   display: flex;
 
-  &__value {
-    width: 100%;
+  &__modal {
+    & .ant-modal-footer {
+      display: none;
+    }
   }
 
   &__currency {
-    width: 120px;
-    margin-right: 8px;
+    &.ant-btn {
+      margin-right: 8px;
+      padding: 0;
+      color: $color-primary;
+    }
+
+    &--dropdown {
+      margin-left: 8px;
+    }
 
     &--logo {
       width: 30px;

@@ -1,11 +1,11 @@
 import { SwapOutlined } from '@ant-design/icons'
-import { Button, Col, Form, Row } from 'antd'
-import { useAppSelector } from 'app/hooks'
-import CurrencyInput from 'features/exchange/CurrencyInput'
+import { Button, Form, Row } from 'antd'
+import CurrencyFieldArray from 'features/exchange/CurrencyFieldArray'
 import { IExchangeForm } from 'features/exchange/Exchange'
-import { exchangeSelector } from 'features/exchange/exchangeSlice'
 import React, { useCallback } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { useForm } from 'react-hook-form'
+
+import './ExchangeForm.scss'
 
 interface IProps {
   onSubmit: (data: IExchangeForm) => Promise<unknown>
@@ -13,9 +13,7 @@ interface IProps {
 }
 
 const ExchangeForm: React.FC<IProps> = ({ initialValues, onSubmit }) => {
-  const { tokens } = useAppSelector(exchangeSelector)
-
-  const { handleSubmit, control, getValues, setValue } = useForm({
+  const { handleSubmit, control, getValues, setValue } = useForm<IExchangeForm>({
     defaultValues: initialValues,
   })
 
@@ -27,42 +25,27 @@ const ExchangeForm: React.FC<IProps> = ({ initialValues, onSubmit }) => {
   }, [getValues, setValue])
 
   return (
-    <Form layout="vertical" onFinish={handleSubmit(onSubmit)}>
-      <Col>
-        <Row justify="space-around" align="middle">
-          <Controller
-            name={'send'}
-            control={control}
-            render={({ field }) => {
-              return (
-                <Form.Item label="You'll send">
-                  <CurrencyInput tokens={tokens} value={field.value} onChange={field.onChange} />
-                </Form.Item>
-              )
-            }}
-          />
+    <Form className="ExchangeForm" layout="vertical" onFinish={handleSubmit(onSubmit)}>
+      <Row justify={'center'} wrap={false}>
+        <CurrencyFieldArray name="send" title="You'll send" control={control} />
 
-          <Button icon={<SwapOutlined />} size="large" onClick={handleSwitchValues} />
+        <Button
+          className={'ExchangeForm__switch-button'}
+          icon={<SwapOutlined />}
+          size="large"
+          onClick={handleSwitchValues}
+        />
 
-          <Controller
-            name={'receive'}
-            control={control}
-            render={({ field }) => {
-              return (
-                <Form.Item label="You'll send">
-                  <CurrencyInput tokens={tokens} value={field.value} onChange={field.onChange} />
-                </Form.Item>
-              )
-            }}
-          />
-        </Row>
-      </Col>
+        <CurrencyFieldArray name="receive" title="You'll receive" control={control} />
+      </Row>
 
-      <Form.Item>
-        <Button type="primary" htmlType="submit">
-          Create
-        </Button>
-      </Form.Item>
+      <Row justify="center">
+        <Form.Item>
+          <Button type="primary" htmlType="submit">
+            Create
+          </Button>
+        </Form.Item>
+      </Row>
     </Form>
   )
 }
