@@ -1,17 +1,22 @@
-import * as anchor from '@project-serum/anchor';
+import * as anchor from "@project-serum/anchor";
 import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
-import { assert } from 'chai';
-import { ConvergenceHack } from '../target/types/convergence_hack';
-import { PublicKey, Keypair, SystemProgram, SYSVAR_RENT_PUBKEY } from "@solana/web3.js";
+import { assert } from "chai";
+import { ConvergenceHack } from "../target/@types/convergence_hack";
+import {
+  PublicKey,
+  Keypair,
+  SystemProgram,
+  SYSVAR_RENT_PUBKEY,
+} from "@solana/web3.js";
 
-
-describe('convergence-hack', () => {
+describe("convergence-hack", () => {
   // Configure the client to use the local cluster.
   anchor.setProvider(anchor.Provider.env());
 
   // @ts-ignore
-  const program = anchor.workspace.ConvergenceHack as anchor.Program<ConvergenceHack>;
-  const {provider, programId} = program;
+  const program = anchor.workspace
+    .ConvergenceHack as anchor.Program<ConvergenceHack>;
+  const { provider, programId } = program;
 
   const maker = Keypair.generate();
   const taker = Keypair.generate();
@@ -33,15 +38,16 @@ describe('convergence-hack', () => {
 
   it("Initialize escrow state", async () => {
     // Airdropping SOL.
-    const accountsToFund = [payer, maker, taker]
+    const accountsToFund = [payer, maker, taker];
 
-    await Promise.all(accountsToFund.map(async acc => {
-      await provider.connection.confirmTransaction(
-        await provider.connection.requestAirdrop(acc.publicKey, 10000000000),
-        "confirmed"
-      )
-    }));
-
+    await Promise.all(
+      accountsToFund.map(async (acc) => {
+        await provider.connection.confirmTransaction(
+          await provider.connection.requestAirdrop(acc.publicKey, 10000000000),
+          "confirmed"
+        );
+      })
+    );
 
     mintA = await Token.createMint(
       provider.connection,
@@ -61,14 +67,10 @@ describe('convergence-hack', () => {
       TOKEN_PROGRAM_ID
     );
 
-    makerA = await mintA.createAssociatedTokenAccount(
-      maker.publicKey
-    );
+    makerA = await mintA.createAssociatedTokenAccount(maker.publicKey);
     takerA = await mintA.createAssociatedTokenAccount(taker.publicKey);
 
-    makerB = await mintB.createAssociatedTokenAccount(
-      maker.publicKey
-    );
+    makerB = await mintB.createAssociatedTokenAccount(maker.publicKey);
     takerB = await mintB.createAssociatedTokenAccount(taker.publicKey);
 
     await mintA.mintTo(
@@ -85,21 +87,22 @@ describe('convergence-hack', () => {
       takerAmountB
     );
 
-    let _initializerTokenAccountA = await mintA.getAccountInfo(
-      makerA
-    );
+    let _initializerTokenAccountA = await mintA.getAccountInfo(makerA);
     let _takerTokenAccountB = await mintB.getAccountInfo(takerB);
 
     assert.ok(_initializerTokenAccountA.amount.toNumber() == makerAmountA);
     assert.ok(_takerTokenAccountB.amount.toNumber() == takerAmountB);
   });
 
-  it('Init deal', async () => {
-    const [pdaAccount] = await PublicKey.findProgramAddress([
-      maker.publicKey.toBuffer(),
-      mintA.publicKey.toBuffer(),
-      escrowState.publicKey.toBuffer(),
-    ], programId);
+  it("Init deal", async () => {
+    const [pdaAccount] = await PublicKey.findProgramAddress(
+      [
+        maker.publicKey.toBuffer(),
+        mintA.publicKey.toBuffer(),
+        escrowState.publicKey.toBuffer(),
+      ],
+      programId
+    );
 
     await program.rpc.initializeDeal(
       new anchor.BN(0), // lamports from maker
@@ -116,87 +119,97 @@ describe('convergence-hack', () => {
           rent: SYSVAR_RENT_PUBKEY,
         },
         signers: [escrowState, maker],
-        remainingAccounts: [{ // maker from
-          pubkey: makerA,
-          isSigner: false,
-          isWritable: true
-        }, {
-          pubkey: makerB, // maker to
-          isSigner: false,
-          isWritable: false
-        },
-        {
-          pubkey: pdaAccount,
-          isSigner: false,
-          isWritable: true
-        },
-        {
-          pubkey: mintA.publicKey,
-          isSigner: false,
-          isWritable: true
-        }
-      ]
+        remainingAccounts: [
+          {
+            // maker from
+            pubkey: makerA,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: makerB, // maker to
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: pdaAccount,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: mintA.publicKey,
+            isSigner: false,
+            isWritable: true,
+          },
+        ],
       }
     );
 
     const makerAmountAAfterInit = await mintA.getAccountInfo(makerA);
-    assert.ok(makerAmountAAfterInit.amount.isZero())
+    assert.ok(makerAmountAAfterInit.amount.isZero());
 
     const escrowLockA = await mintA.getAccountInfo(pdaAccount);
     assert.ok(escrowLockA.amount.eq(new anchor.BN(makerAmountA)));
-    assert.ok(escrowLockA.owner.equals(pdaAccount))
+    assert.ok(escrowLockA.owner.equals(pdaAccount));
 
-    const escrowStateInfo = await program.account.escrowAccount.fetch(escrowState.publicKey);
-    assert.ok(escrowStateInfo.maker.equals(maker.publicKey))
+    const escrowStateInfo = await program.account.escrowAccount.fetch(
+      escrowState.publicKey
+    );
+    assert.ok(escrowStateInfo.maker.equals(maker.publicKey));
   });
 
-  it('Execute deal', async () => {
-    const [{ pubkey: pdaAccount }] = (await program.account.escrowAccount.fetch(escrowState.publicKey)).makerLockedTokens as {pubkey: PublicKey}[];
+  it("Execute deal", async () => {
+    const [{ pubkey: pdaAccount }] = (
+      await program.account.escrowAccount.fetch(escrowState.publicKey)
+    ).makerLockedTokens as { pubkey: PublicKey }[];
 
-    await program.rpc.exchange(
-      {
-        accounts: {
-          maker: maker.publicKey,
-          taker: taker.publicKey,
-          systemProgram: SystemProgram.programId,
-          escrow: escrowState.publicKey,
-          tokenProgram: TOKEN_PROGRAM_ID,
-        },
-        signers: [taker],
-        remainingAccounts: [{ // taker from
+    await program.rpc.exchange({
+      accounts: {
+        maker: maker.publicKey,
+        taker: taker.publicKey,
+        systemProgram: SystemProgram.programId,
+        escrow: escrowState.publicKey,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      },
+      signers: [taker],
+      remainingAccounts: [
+        {
+          // taker from
           pubkey: takerB,
           isSigner: false,
-          isWritable: true
-        }, {
+          isWritable: true,
+        },
+        {
           pubkey: makerB, // maker to
           isSigner: false,
-          isWritable: true
+          isWritable: true,
         },
         {
           pubkey: takerA, // taker to
           isSigner: false,
-          isWritable: true
+          isWritable: true,
         },
         {
           pubkey: pdaAccount, // taker from
           isSigner: false,
-          isWritable: true
+          isWritable: true,
         },
-      ]
-      }
-    );
+      ],
+    });
 
     const finalTakerAmountA = await mintA.getAccountInfo(takerA);
     const finalTakerAmountB = await mintB.getAccountInfo(takerB);
-    assert.ok(finalTakerAmountA.amount.eq(new anchor.BN(makerAmountA)))
-    assert.ok(finalTakerAmountB.amount.isZero())
+    assert.ok(finalTakerAmountA.amount.eq(new anchor.BN(makerAmountA)));
+    assert.ok(finalTakerAmountB.amount.isZero());
 
     const finalMakerAmountA = await mintA.getAccountInfo(makerA);
     const finalMakerAmountB = await mintB.getAccountInfo(makerB);
-    assert.ok(finalMakerAmountA.amount.isZero())
-    assert.ok(finalMakerAmountB.amount.eq(new anchor.BN(takerAmountB)))
+    assert.ok(finalMakerAmountA.amount.isZero());
+    assert.ok(finalMakerAmountB.amount.eq(new anchor.BN(takerAmountB)));
 
-    const escrowInfo = await provider.connection.getAccountInfo(escrowState.publicKey);
+    const escrowInfo = await provider.connection.getAccountInfo(
+      escrowState.publicKey
+    );
     assert.isNull(escrowInfo);
   });
 });

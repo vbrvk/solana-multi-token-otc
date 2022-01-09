@@ -1,0 +1,14 @@
+@import "src/scss/variables";
+
+.CurrencyInput {
+  display: flex;
+  flex-wrap: wrap;
+
+  &__value {
+    width: 100%;
+  }
+
+  &__currency {
+    margin-right: 8px;
+  }
+}
