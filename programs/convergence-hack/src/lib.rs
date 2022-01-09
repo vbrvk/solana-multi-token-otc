@@ -301,13 +301,14 @@ pub struct EscrowAccount {
     taker: Option<Pubkey>,                // 32
     maker_lamports_offer: u64,            // 8
     maker_lamports_request: u64,          // 8
-    maker_tokens_request: Vec<TokenInfo>, // 40 * MAX_TOKENS
-    maker_locked_tokens: Vec<TokenInfo>,  // 40 * MAX_TOKENS
+    maker_tokens_request: Vec<TokenInfo>, // 4 (vec len https://borsh.io/) + 40 * MAX_TOKENS
+    maker_locked_tokens: Vec<TokenInfo>,  // 4 + 40 * MAX_TOKENS
 }
 
 impl EscrowAccount {
     pub const MAX_TOKENS: usize = 20;
-    pub const LEN: usize = 32 + 32 + 8 + 8 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS * 2;
+    pub const LEN: usize =
+        32 + 32 + 8 + 8 + (4 + size_of::<TokenInfo>() * EscrowAccount::MAX_TOKENS) * 2;
 }
 
 // token accounts should be passed through `remaining_accounts`
