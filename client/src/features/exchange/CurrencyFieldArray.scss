@@ -1,0 +1,18 @@
+@import "src/scss/variables";
+
+.CurrencyFieldArray {
+  &__form-item {
+    & .ant-form-item-control-input-content {
+      display: flex;
+      align-items: center;
+    }
+  }
+
+  &__remove-btn {
+    &.ant-btn {
+      position: absolute;
+      right: 0;
+      z-index: 1;
+    }
+  }
+}

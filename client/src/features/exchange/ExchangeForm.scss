@@ -1,7 +1,9 @@
 @import "src/scss/variables";
 
 .ExchangeForm {
-  margin-bottom: 36px;
+  &__form {
+    margin-bottom: 36px;
+  }
 
   &__switch-button {
     align-self: center;

@@ -26,7 +26,7 @@ const ExchangeForm: React.FC<IProps> = ({ initialValues, onSubmit }) => {
 
   return (
     <Form className="ExchangeForm" layout="vertical" onFinish={handleSubmit(onSubmit)}>
-      <Row justify={'center'} wrap={false}>
+      <Row justify={'center'} wrap={false} className="ExchangeForm__form">
         <CurrencyFieldArray name="send" title="You'll send" control={control} />
 
         <Button
