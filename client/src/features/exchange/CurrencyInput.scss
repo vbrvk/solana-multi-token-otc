@@ -2,13 +2,21 @@
 
 .CurrencyInput {
   display: flex;
-  flex-wrap: wrap;
 
   &__value {
     width: 100%;
   }
 
   &__currency {
+    width: 120px;
     margin-right: 8px;
+
+    &--logo {
+      width: 30px;
+      height: 30px;
+      margin-right: 8px;
+      border-radius: 50%;
+      object-fit: contain;
+    }
   }
 }

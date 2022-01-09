@@ -16,7 +16,6 @@
     "ecmaFeatures": {
       "jsx": true
     },
-    "project": "./tsconfig.json",
     "ecmaVersion": 2020,
     "sourceType": "module"
   },
@@ -30,7 +29,7 @@
     "prettier/prettier": "error",
     "@typescript-eslint/no-empty-interface": "off",
     "@typescript-eslint/no-empty-function": "off",
-    "no-console": "error",
+    "no-console": "warn",
     "array-bracket-spacing": ["error", "never"],
     "object-curly-spacing": ["error", "always"]
   }

@@ -1,9 +1,12 @@
 import { configureStore, ThunkAction, Action } from '@reduxjs/toolkit'
+import exchange from 'features/exchange/exchangeSlice'
 
 export const store = configureStore({
-  reducer: {},
+  reducer: {
+    exchange,
+  },
 })
 
-export type AppDispatch = typeof store.dispatch
-export type RootState = ReturnType<typeof store.getState>
-export type AppThunk<ReturnType = void> = ThunkAction<ReturnType, RootState, unknown, Action<string>>
+export type TAppDispatch = typeof store.dispatch
+export type TRootState = ReturnType<typeof store.getState>
+export type AppThunk<ReturnType = void> = ThunkAction<ReturnType, TRootState, unknown, Action<string>>

@@ -1,6 +1,6 @@
 import { Layout } from 'antd'
 import React from 'react'
-import { Exchange } from 'features/exchange/Exchange'
+import Exchange from 'features/exchange/Exchange'
 
 import './App.scss'
 

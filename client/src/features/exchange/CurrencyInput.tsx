@@ -1,32 +1,38 @@
-import { Input, Select } from 'antd'
-import React, { useCallback, useState } from 'react'
+import { TokenInfo } from '@solana/spl-token-registry'
+import { Input, Row, Select } from 'antd'
+import { ICurrencyValue } from 'features/exchange/Exchange'
+import React, { useCallback, useMemo } from 'react'
 
 import './CurrencyInput.scss'
 
-interface ICurrencyValue {
-  currency: string
-  number: number
-}
-
 interface IProps {
-  value?: ICurrencyValue
-  onChange?: (value: ICurrencyValue) => void
+  tokens: TokenInfo[]
+  value: ICurrencyValue
+  onChange: (value: ICurrencyValue) => void
 }
 
-const CurrencyInput: React.FC<IProps> = ({ value = {}, onChange }) => {
-  const [number, setNumber] = useState<string | number>(0)
-  const [currency, setCurrency] = useState('rmb')
+const CurrencyInput: React.FC<IProps> = ({ value = {}, onChange, tokens }) => {
+  const tokensOptions = useMemo(() => {
+    return tokens.map((t) => {
+      return (
+        <Select.Option key={t.address} value={t.address} label={t.symbol}>
+          <Row>
+            <img src={t.logoURI} className={'CurrencyInput__currency--logo'} alt={t.name} />
+            {t.name}
+          </Row>
+        </Select.Option>
+      )
+    })
+  }, [tokens])
 
   const triggerChange = useCallback(
     (changedValue) => {
-      onChange?.({
-        number,
-        currency,
+      onChange({
         ...value,
         ...changedValue,
       })
     },
-    [currency, number, onChange, value],
+    [onChange, value],
   )
 
   const onNumberChange = useCallback(
@@ -38,37 +44,34 @@ const CurrencyInput: React.FC<IProps> = ({ value = {}, onChange }) => {
         return
       }
 
-      if (!('number' in value)) {
-        setNumber(inputValue)
-      }
-
       triggerChange({
         number: inputValue,
       })
     },
-    [triggerChange, value],
+    [triggerChange],
   )
 
   const onCurrencyChange = useCallback(
     (newCurrency) => {
-      if (!('currency' in value)) {
-        setCurrency(newCurrency)
-      }
-
       triggerChange({
         currency: newCurrency,
       })
     },
-    [triggerChange, value],
+    [triggerChange],
   )
 
   return (
     <div className="CurrencyInput">
-      <Select className="CurrencyInput__currency" value={value.currency || currency} onChange={onCurrencyChange}>
-        <Select.Option value="rmb">RMB</Select.Option>
-        <Select.Option value="dollar">Dollar</Select.Option>
+      <Select
+        bordered={false}
+        className="CurrencyInput__currency"
+        value={value.currency}
+        onChange={onCurrencyChange}
+        optionLabelProp="label"
+      >
+        {tokensOptions}
       </Select>
-      <Input className="CurrencyInput__value" value={value.number || number} onChange={onNumberChange} />
+      <Input placeholder="0.00" className="CurrencyInput__value" value={value.number} onChange={onNumberChange} />
     </div>
   )
 }
