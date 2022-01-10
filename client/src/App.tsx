@@ -1,19 +1,27 @@
+import { WalletKitProvider } from '@gokiprotocol/walletkit'
 import { Layout } from 'antd'
 import React from 'react'
 import Exchange from 'features/exchange/Exchange'
+import Header from 'components/Header/Header'
 
 import './App.scss'
 
-const { Header, Content } = Layout
-
 function App() {
   return (
-    <Layout className={'Layout'}>
-      <Header />
-      <Content className={'Layout__content'}>
-        <Exchange />
-      </Content>
-    </Layout>
+    <WalletKitProvider
+      app={{
+        name: 'Solana exchange',
+      }}
+    >
+      <Layout className={'Layout'}>
+        <Layout.Header>
+          <Header />
+        </Layout.Header>
+        <Layout.Content className={'Layout__content'}>
+          <Exchange />
+        </Layout.Content>
+      </Layout>
+    </WalletKitProvider>
   )
 }
 

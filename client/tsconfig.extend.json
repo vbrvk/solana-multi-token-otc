@@ -5,7 +5,9 @@
       "app/*": ["src/app/*"],
       "features/*": ["src/features/*"],
       "models/*": ["src/models/*"],
-      "hooks/*": ["src/hooks/*"]
+      "hooks/*": ["src/hooks/*"],
+      "helpers/*": ["src/helpers/*"],
+      "components/*": ["src/components/*"]
     }
   }
 }

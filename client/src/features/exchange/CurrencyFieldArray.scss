@@ -1,6 +1,11 @@
 @import "src/scss/variables";
 
 .CurrencyFieldArray {
+  &.ant-col {
+    max-width: 310px;
+    flex: 1;
+  }
+
   &__form-item {
     & .ant-form-item-control-input-content {
       display: flex;

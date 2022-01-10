@@ -2,6 +2,7 @@
 
 .CurrencyInput {
   display: flex;
+  flex: 1;
 
   &__modal {
     & .ant-modal-footer {

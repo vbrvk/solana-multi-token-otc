@@ -26,6 +26,25 @@
   "rules": {
     "@typescript-eslint/no-empty-interface": "off",
     "@typescript-eslint/no-empty-function": "off",
+    "@typescript-eslint/quotes": [
+      "error",
+      "single"
+    ],
+    "@typescript-eslint/semi": [
+      "error",
+      "never"
+    ],
+    "comma-dangle": [
+      "error",
+      "always-multiline"
+    ],
+    "max-len": [
+      "error",
+      {
+        "code": 120
+      }
+    ],
+    "indent": [2, 2, {"SwitchCase": 1}],
     "no-console": "warn",
     "array-bracket-spacing": ["error", "never"],
     "object-curly-spacing": ["error", "always"]

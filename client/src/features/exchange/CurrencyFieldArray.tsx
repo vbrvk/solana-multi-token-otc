@@ -1,4 +1,4 @@
-import { DeleteOutlined } from "@ant-design/icons";
+import { DeleteOutlined } from '@ant-design/icons'
 import { Button, Col, Form, Typography } from 'antd'
 import { useAppSelector } from 'app/hooks'
 import CurrencyInput from 'features/exchange/CurrencyInput'
@@ -56,7 +56,7 @@ const CurrencyFieldArray: React.FC<IProps> = ({ name, control, title }) => {
                     />
                   )}
                 </Form.Item>
-              );
+              )
             }}
           />
         )
