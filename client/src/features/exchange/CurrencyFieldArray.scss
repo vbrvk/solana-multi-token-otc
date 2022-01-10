@@ -1,9 +1,16 @@
 @import "src/scss/variables";
+@import "src/scss/mixin";
 
 .CurrencyFieldArray {
   &.ant-col {
     max-width: 310px;
+    display: flex;
+    flex-direction: column;
     flex: 1;
+
+    @include md {
+      max-width: unset;
+    }
   }
 
   &__form-item {

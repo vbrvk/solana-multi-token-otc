@@ -1,8 +1,16 @@
 @import "src/scss/variables";
+@import "src/scss/mixin";
 
 .ExchangeForm {
   &__form {
+    display: flex;
+    justify-content: center;
+    flex-wrap: nowrap;
     margin-bottom: 36px;
+
+    @include md {
+      flex-direction: column;
+    }
   }
 
   &__switch-button {
@@ -10,6 +18,10 @@
 
     &.ant-btn {
       margin: 0 16px;
+
+      @include md {
+        margin: 16px 0;
+      }
     }
   }
 }
