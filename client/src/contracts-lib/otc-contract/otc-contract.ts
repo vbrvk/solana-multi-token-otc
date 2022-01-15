@@ -19,6 +19,13 @@ export class OtcContract {
     this.program = new Program(IDL, programId, this.provider)
   }
 
+  /**
+   * Called by maker
+   *
+   * @param makerOffer
+   * @param makerRequest
+   * @param taker
+   */
   public async initDeal(
     makerOffer: {
       lamports: BN,
@@ -72,6 +79,75 @@ export class OtcContract {
     )
 
     return { hash, escrowState: escrowState.publicKey }
+  }
+
+  /**
+   * Called by taker
+   *
+   * @param escrowState pubkey of escrow state (see this.initDeal return value)
+   * @param takerAccountsFrom from which accounts transfer tokens
+   *  should be ordered by mint as makerTokensRequest in escrow state info
+   * @param takerAccountsTo to which accounts transfer tokens
+   *  should be ordered by mint as makerLockedTokens in escrow state info
+   * @returns hash of tx
+   */
+  public async acceptDeal(
+    escrowState: PublicKey,
+    takerAccountsFrom: PublicKey[],
+    takerAccountsTo: PublicKey[],
+  ): Promise<TransactionSignature> {
+    const escrowStateInfo = (
+      await this.program.account.escrowAccount.fetch(escrowState)
+    )
+
+    const makerLockedTokens = escrowStateInfo.makerLockedTokens as { pubkey: PublicKey }[]
+    const makerTokensRequest = escrowStateInfo.makerTokensRequest as { pubkey: PublicKey }[]
+
+    if (takerAccountsFrom.length !== makerTokensRequest.length) {
+      throw new Error('Not enough takerAccountsFrom')
+    }
+
+    if (takerAccountsTo.length !== makerLockedTokens.length) {
+      throw new Error('Not enough takerAccountsTo')
+    }
+
+    const hash = await this.program.rpc.exchange({
+      accounts: {
+        maker: escrowStateInfo.maker,
+        taker: this.wallet.publicKey,
+        systemProgram: SystemProgram.programId,
+        escrow: escrowState,
+        tokenProgram: TOKEN_PROGRAM_ID,
+      },
+      remainingAccounts: [
+        ...takerAccountsFrom.flatMap(((takerAccountFrom, i) => [
+          {
+            pubkey: takerAccountFrom,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: makerTokensRequest[i].pubkey,
+            isSigner: false,
+            isWritable: true,
+          },
+        ])),
+        ...takerAccountsTo.flatMap(((takerAccountTo, i) => [
+          {
+            pubkey: takerAccountTo,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: makerLockedTokens[i].pubkey,
+            isSigner: false,
+            isWritable: true,
+          },
+        ])),
+      ],
+    })
+
+    return hash
   }
 
   private async getPdaAccount(mint: PublicKey, escrowState: PublicKey): Promise<PublicKey> {

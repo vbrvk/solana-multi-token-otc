@@ -211,7 +211,7 @@ describe("convergence-hack", () => {
           isWritable: true,
         },
         {
-          pubkey: pdaAccount, // taker from
+          pubkey: pdaAccount, // pda (maker locked funds)
           isSigner: false,
           isWritable: true,
         },

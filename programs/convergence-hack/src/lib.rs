@@ -432,12 +432,14 @@ pub struct TokenInfo {
 #[account]
 #[derive(Default)]
 pub struct EscrowAccount {
-    maker: Pubkey,                        // 32
-    taker: Option<Pubkey>,                // 32
-    maker_lamports_offer: u64,            // 8
-    maker_lamports_request: u64,          // 8
+    maker: Pubkey,               // 32
+    taker: Option<Pubkey>,       // 32
+    maker_lamports_offer: u64,   // 8
+    maker_lamports_request: u64, // 8
+    // maker destination accounts
     maker_tokens_request: Vec<TokenInfo>, // 4 (vec len https://borsh.io/) + 40 * MAX_TOKENS
-    maker_locked_tokens: Vec<TokenInfo>,  // 4 + 40 * MAX_TOKENS
+    // pda accounts where tokens locked
+    maker_locked_tokens: Vec<TokenInfo>, // 4 + 40 * MAX_TOKENS
 }
 
 impl EscrowAccount {
