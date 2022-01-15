@@ -1,13 +1,13 @@
 use std::mem::size_of;
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program;
 use anchor_spl::token::{self, Token, TokenAccount, ID as token_id};
 
 declare_id!("6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd");
 
 #[program]
 pub mod convergence_hack {
-    use anchor_lang::solana_program;
 
     use super::*;
 
@@ -272,43 +272,18 @@ pub mod convergence_hack {
                 &[nonce],
             ]];
 
-            let transfer_tokens_ix = spl_token::instruction::transfer(
-                &ctx.accounts.token_program.key(),
-                &pda,
-                &taker_token_account.key(),
-                &pda,
-                &[&pda],
-                maker_lock.amount,
-            )?;
-
-            solana_program::program::invoke_signed(
-                &transfer_tokens_ix,
-                &[
-                    taker_token_account.clone(),
-                    pda_token_account.clone(),
-                    ctx.accounts.token_program.to_account_info().clone(),
-                ],
+            let token_vault = TokenVault {
+                authority: &pda,
+                account: pda_token_account.clone(),
+                token_program_account: ctx.accounts.token_program.to_account_info(),
                 signers_seeds,
-            )?;
+            };
+
+            // transfer tokens to taker
+            token_vault.transfer_tokens(taker_token_account.clone(), maker_lock.amount)?;
 
             // Close pda accounts and return lamports to maker
-            let close_account_ix = spl_token::instruction::close_account(
-                &ctx.accounts.token_program.key(),
-                &pda,
-                &ctx.accounts.maker.key(),
-                &pda,
-                &[&pda],
-            )?;
-
-            solana_program::program::invoke_signed(
-                &close_account_ix,
-                &[
-                    ctx.accounts.maker.clone(),
-                    pda_token_account.clone(),
-                    ctx.accounts.token_program.to_account_info().clone(),
-                ],
-                signers_seeds,
-            )?;
+            token_vault.close_account(ctx.accounts.maker.to_account_info())?;
         }
 
         Ok(())
@@ -373,47 +348,78 @@ pub mod convergence_hack {
                 &[nonce],
             ]];
 
+            let token_vault = TokenVault {
+                authority: &pda,
+                account: pda_token_account.clone(),
+                token_program_account: ctx.accounts.token_program.to_account_info(),
+                signers_seeds,
+            };
+
             // transfer tokens back to maker
-            let transfer_tokens_ix = spl_token::instruction::transfer(
-                &ctx.accounts.token_program.key(),
-                &pda,
-                &maker_return_to_token_account.key(),
-                &pda,
-                &[&pda],
+            token_vault.transfer_tokens(
+                maker_return_to_token_account.clone(),
                 maker_locked_token.amount,
             )?;
 
-            solana_program::program::invoke_signed(
-                &transfer_tokens_ix,
-                &[
-                    maker_return_to_token_account.clone(),
-                    pda_token_account.clone(),
-                    ctx.accounts.token_program.to_account_info().clone(),
-                ],
-                signers_seeds,
-            )?;
-
             // Close pda accounts and return lamports to maker
-            let close_account_ix = spl_token::instruction::close_account(
-                &ctx.accounts.token_program.key(),
-                &pda,
-                &ctx.accounts.maker.key(),
-                &pda,
-                &[&pda],
-            )?;
-
-            solana_program::program::invoke_signed(
-                &close_account_ix,
-                &[
-                    ctx.accounts.maker.to_account_info().clone(),
-                    pda_token_account.clone(),
-                    ctx.accounts.token_program.to_account_info().clone(),
-                ],
-                signers_seeds,
-            )?;
+            token_vault.close_account(ctx.accounts.maker.to_account_info())?;
         }
 
         Ok(())
+    }
+}
+
+struct TokenVault<'a, 'b> {
+    pub token_program_account: AccountInfo<'a>,
+    pub account: AccountInfo<'a>,
+    pub authority: &'b Pubkey,
+    pub signers_seeds: &'b [&'b [&'b [u8]]],
+}
+
+impl<'a, 'b> TokenVault<'a, 'b> {
+    pub fn transfer_tokens(
+        &self,
+        dest_account_info: AccountInfo<'a>,
+        amount: u64,
+    ) -> ProgramResult {
+        let transfer_tokens_ix = spl_token::instruction::transfer(
+            &self.token_program_account.key(),
+            self.authority,
+            &dest_account_info.key(),
+            self.authority,
+            &[self.authority],
+            amount,
+        )?;
+
+        solana_program::program::invoke_signed(
+            &transfer_tokens_ix,
+            &[
+                dest_account_info,
+                self.account.clone(),
+                self.token_program_account.clone(),
+            ],
+            self.signers_seeds,
+        )
+    }
+
+    pub fn close_account(&self, dest_lamports_account_info: AccountInfo<'a>) -> ProgramResult {
+        let close_account_ix = spl_token::instruction::close_account(
+            &self.token_program_account.key(),
+            self.authority,
+            &dest_lamports_account_info.key(),
+            self.authority,
+            &[self.authority],
+        )?;
+
+        solana_program::program::invoke_signed(
+            &close_account_ix,
+            &[
+                dest_lamports_account_info.clone(),
+                self.account.clone(),
+                self.token_program_account.clone(),
+            ],
+            self.signers_seeds,
+        )
     }
 }
 
