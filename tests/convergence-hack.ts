@@ -1,4 +1,5 @@
 import * as anchor from "@project-serum/anchor";
+import * as web3 from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
 import { assert } from "chai";
 import { ConvergenceHack } from "../target/types/convergence_hack";
@@ -40,11 +41,31 @@ describe("convergence-hack", () => {
     // Airdropping SOL.
     const accountsToFund = [payer, maker, taker];
 
+    // await Promise.all(
+    //   accountsToFund.map(async (acc) => {
+    //     await provider.connection.confirmTransaction(
+    //       await provider.connection.requestAirdrop(acc.publicKey, 2 * LAMPORTS_PER_SOL),
+    //       "confirmed"
+    //     );
+    //   })
+    // );
+
+    // for devnet
+    // anchor test --provider.cluster https://psytrbhymqlkfrhudd.dev.genesysgo.net:8899/ --skip-deploy
     await Promise.all(
       accountsToFund.map(async (acc) => {
-        await provider.connection.confirmTransaction(
-          await provider.connection.requestAirdrop(acc.publicKey, 10000000000),
-          "confirmed"
+        await web3.sendAndConfirmRawTransaction(
+          provider.connection,
+          (await provider.wallet.signTransaction(new web3.Transaction({
+            recentBlockhash: (await provider.connection.getRecentBlockhash()).blockhash,
+            feePayer: provider.wallet.publicKey
+          }).add(
+            web3.SystemProgram.transfer({
+              fromPubkey: provider.wallet.publicKey,
+              toPubkey: acc.publicKey,
+              lamports: web3.LAMPORTS_PER_SOL * 2,
+            }),
+          ))).serialize(),
         );
       })
     );
@@ -282,13 +303,37 @@ describe("convergence-hack", () => {
         key: maker.publicKey.toString()
       },
       {
+        name: 'pda',
+        key: pdaAccount.toString()
+      },
+      {
+        name: 'taker',
+        key: taker.publicKey.toString()
+      },
+      {
         name: 'escrowState',
         key: escrowState.publicKey.toString()
       },
       {
         name: 'payer',
         key: program.provider.wallet.publicKey.toString()
-      }
+      },
+      {
+        name: 'makerA',
+        key: makerA.toString()
+      },
+      {
+        name: 'makerB',
+        key: makerB.toString()
+      },
+      {
+        name: 'takerA',
+        key: takerA.toString()
+      },
+      {
+        name: 'takerB',
+        key: takerB.toString()
+      },
   ]);
 
 

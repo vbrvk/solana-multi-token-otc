@@ -1,6 +1,9 @@
 [programs.localnet]
 convergence_hack = "6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd"
 
+[programs.devnet]
+convergence_hack = "6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd"
+
 [registry]
 url = "https://anchor.projectserum.com"
 
