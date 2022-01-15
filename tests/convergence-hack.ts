@@ -1,7 +1,7 @@
 import * as anchor from "@project-serum/anchor";
 import { TOKEN_PROGRAM_ID, Token } from "@solana/spl-token";
 import { assert } from "chai";
-import { ConvergenceHack } from "../target/@types/convergence_hack";
+import { ConvergenceHack } from "../target/types/convergence_hack";
 import {
   PublicKey,
   Keypair,
@@ -215,4 +215,116 @@ describe("convergence-hack", () => {
     const pdaInfo = await provider.connection.getAccountInfo(pdaAccount);
     assert.isNull(pdaInfo);
   });
+
+  it('Should close deal and return all money back to maker', async () => {
+    // init deal
+    // mint tokeA to A again
+    await mintA.mintTo(
+      makerA,
+      mintAuthority.publicKey,
+      [mintAuthority],
+      makerAmountA
+    );
+
+    const [pdaAccount] = await PublicKey.findProgramAddress(
+      [
+        maker.publicKey.toBuffer(),
+        mintA.publicKey.toBuffer(),
+        escrowState.publicKey.toBuffer(),
+      ],
+      programId
+    );
+
+    await program.rpc.initializeDeal(
+      new anchor.BN(0), // lamports from maker
+      new anchor.BN(0), // lamports to maker
+      [new anchor.BN(makerAmountA)],
+      [new anchor.BN(takerAmountB)],
+      null,
+      {
+        accounts: {
+          maker: maker.publicKey,
+          systemProgram: SystemProgram.programId,
+          escrow: escrowState.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          rent: SYSVAR_RENT_PUBKEY,
+        },
+        signers: [maker, escrowState],
+        remainingAccounts: [
+          {
+            // maker from
+            pubkey: makerA,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: makerB, // maker to
+            isSigner: false,
+            isWritable: false,
+          },
+          {
+            pubkey: pdaAccount,
+            isSigner: false,
+            isWritable: true,
+          },
+          {
+            pubkey: mintA.publicKey,
+            isSigner: false,
+            isWritable: true,
+          },
+        ],
+      }
+    );
+
+    console.table([
+      {
+        name: 'maker',
+        key: maker.publicKey.toString()
+      },
+      {
+        name: 'escrowState',
+        key: escrowState.publicKey.toString()
+      },
+      {
+        name: 'payer',
+        key: program.provider.wallet.publicKey.toString()
+      }
+  ]);
+
+
+    await program.rpc.closeDeal({
+      accounts: {
+        maker: maker.publicKey,
+        escrow: escrowState.publicKey,
+        systemProgram: SystemProgram.programId,
+        tokenProgram: TOKEN_PROGRAM_ID
+      },
+      signers: [maker],
+      remainingAccounts: [
+        {
+          // maker to
+          pubkey: makerA,
+          isSigner: false,
+          isWritable: true,
+        },
+        {
+          pubkey: pdaAccount,
+          isSigner: false,
+          isWritable: true,
+        }
+      ]
+    })
+
+
+    const escrowInfo = await provider.connection.getAccountInfo(
+      escrowState.publicKey
+    );
+    assert.isNull(escrowInfo);
+
+    const pdaInfo = await provider.connection.getAccountInfo(pdaAccount);
+    assert.isNull(pdaInfo);
+
+    const finalMakerAmountA = await mintA.getAccountInfo(makerA);
+    assert.ok(finalMakerAmountA.amount.eq(new anchor.BN(makerAmountA)))
+  })
 });

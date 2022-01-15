@@ -22,11 +22,11 @@ pub mod convergence_hack {
         // Validate incoming data
 
         if taker_amounts.is_empty() {
-            return Err(ErrorCode::NoTakerTokens.into());
+            return Err(ErrorCode::NotEnoughAccounts.into());
         }
 
         if maker_amounts.is_empty() {
-            return Err(ErrorCode::NoMakerTokens.into());
+            return Err(ErrorCode::NotEnoughAccounts.into());
         }
 
         // Init escrow account
@@ -184,16 +184,32 @@ pub mod convergence_hack {
         let mut accounts = ctx.remaining_accounts.iter();
 
         // move taker funds to maker
+
+        if ctx.accounts.escrow.maker_lamports_request > 0 {
+            solana_program::program::invoke(
+                &solana_program::system_instruction::transfer(
+                    &ctx.accounts.taker.key(),
+                    &ctx.accounts.maker.key(),
+                    ctx.accounts.escrow.maker_lamports_request,
+                ),
+                &[
+                    ctx.accounts.maker.to_account_info(),
+                    ctx.accounts.taker.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
+
         for maker_req in &ctx.accounts.escrow.maker_tokens_request {
             let taker_token_account = accounts.next();
             let maker_token_account = accounts.next();
 
             if taker_token_account.is_none() {
-                return Err(ErrorCode::NoTakerTokens.into());
+                return Err(ErrorCode::NotEnoughAccounts.into());
             }
 
             if maker_token_account.is_none() {
-                return Err(ErrorCode::NoMakerTokens.into());
+                return Err(ErrorCode::NotEnoughAccounts.into());
             }
 
             let taker_token_account = taker_token_account.unwrap();
@@ -202,7 +218,7 @@ pub mod convergence_hack {
             if token::accessor::mint(taker_token_account)
                 != token::accessor::mint(maker_token_account)
             {
-                return Err(ErrorCode::TokenAccountsMotMatched.into());
+                return Err(ErrorCode::TokenAccountsNotMatched.into());
             }
 
             let transfer_tokens_ctx = CpiContext::new(
@@ -223,11 +239,11 @@ pub mod convergence_hack {
             let pda_token_account = accounts.next();
 
             if taker_token_account.is_none() {
-                return Err(ErrorCode::NoTakerTokens.into());
+                return Err(ErrorCode::NotEnoughAccounts.into());
             }
 
             if pda_token_account.is_none() {
-                return Err(ErrorCode::NoMakerTokens.into());
+                return Err(ErrorCode::NotEnoughAccounts.into());
             }
 
             let taker_token_account = taker_token_account.unwrap();
@@ -236,7 +252,7 @@ pub mod convergence_hack {
             let pda_token_mint = token::accessor::mint(pda_token_account)?;
 
             if token::accessor::mint(taker_token_account)? != pda_token_mint {
-                return Err(ErrorCode::TokenAccountsMotMatched.into());
+                return Err(ErrorCode::TokenAccountsNotMatched.into());
             }
 
             // TODO: pass nonces as params
@@ -248,6 +264,13 @@ pub mod convergence_hack {
                 ],
                 ctx.program_id,
             );
+
+            let signers_seeds: &[&[&[u8]]] = &[&[
+                &ctx.accounts.maker.key.to_bytes(),
+                &pda_token_mint.key().to_bytes(),
+                &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                &[nonce],
+            ]];
 
             let transfer_tokens_ix = spl_token::instruction::transfer(
                 &ctx.accounts.token_program.key(),
@@ -265,12 +288,7 @@ pub mod convergence_hack {
                     pda_token_account.clone(),
                     ctx.accounts.token_program.to_account_info().clone(),
                 ],
-                &[&[
-                    &ctx.accounts.maker.key.to_bytes(),
-                    &pda_token_mint.key().to_bytes(),
-                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
-                    &[nonce],
-                ]],
+                signers_seeds,
             )?;
 
             // Close pda accounts and return lamports to maker
@@ -289,12 +307,7 @@ pub mod convergence_hack {
                     pda_token_account.clone(),
                     ctx.accounts.token_program.to_account_info().clone(),
                 ],
-                &[&[
-                    &ctx.accounts.maker.key.to_bytes(),
-                    &pda_token_mint.key().to_bytes(),
-                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
-                    &[nonce],
-                ]],
+                signers_seeds,
             )?;
         }
 
@@ -304,6 +317,102 @@ pub mod convergence_hack {
     pub fn close_deal<'info>(
         ctx: Context<'_, '_, '_, 'info, CloseDealParams<'info>>,
     ) -> Result<()> {
+        // return maker lamports
+        if ctx.accounts.escrow.maker_lamports_offer > 0 {
+            solana_program::program::invoke(
+                &solana_program::system_instruction::transfer(
+                    &ctx.accounts.escrow.key(),
+                    &ctx.accounts.maker.key(),
+                    ctx.accounts.escrow.maker_lamports_offer,
+                ),
+                &[
+                    ctx.accounts.maker.to_account_info(),
+                    ctx.accounts.escrow.to_account_info(),
+                    ctx.accounts.system_program.to_account_info(),
+                ],
+            )?;
+        }
+
+        let mut accounts = ctx.remaining_accounts.iter();
+
+        // return maker funds from pda to maker and close accounts
+        for maker_locked_token in &ctx.accounts.escrow.maker_locked_tokens {
+            let maker_return_to_token_account = accounts.next();
+            let pda_token_account = accounts.next();
+
+            if maker_return_to_token_account.is_none() {
+                return Err(ErrorCode::NotEnoughAccounts.into());
+            }
+
+            if pda_token_account.is_none() {
+                return Err(ErrorCode::NotEnoughAccounts.into());
+            }
+
+            let maker_return_to_token_account = maker_return_to_token_account.unwrap();
+            let pda_token_account = pda_token_account.unwrap();
+
+            let pda_token_mint = token::accessor::mint(pda_token_account)?;
+
+            if token::accessor::mint(maker_return_to_token_account)? != pda_token_mint {
+                return Err(ErrorCode::TokenAccountsNotMatched.into());
+            }
+
+            let (pda, nonce) = Pubkey::find_program_address(
+                &[
+                    &ctx.accounts.maker.key.to_bytes(),
+                    &pda_token_mint.key().to_bytes(),
+                    &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                ],
+                ctx.program_id,
+            );
+
+            let signers_seeds: &[&[&[u8]]] = &[&[
+                &ctx.accounts.maker.key.to_bytes(),
+                &pda_token_mint.key().to_bytes(),
+                &ctx.accounts.escrow.to_account_info().key.to_bytes(),
+                &[nonce],
+            ]];
+
+            // transfer tokens back to maker
+            let transfer_tokens_ix = spl_token::instruction::transfer(
+                &ctx.accounts.token_program.key(),
+                &pda,
+                &maker_return_to_token_account.key(),
+                &pda,
+                &[&pda],
+                maker_locked_token.amount,
+            )?;
+
+            solana_program::program::invoke_signed(
+                &transfer_tokens_ix,
+                &[
+                    maker_return_to_token_account.clone(),
+                    pda_token_account.clone(),
+                    ctx.accounts.token_program.to_account_info().clone(),
+                ],
+                signers_seeds,
+            )?;
+
+            // Close pda accounts and return lamports to maker
+            let close_account_ix = spl_token::instruction::close_account(
+                &ctx.accounts.token_program.key(),
+                &pda,
+                &ctx.accounts.maker.key(),
+                &pda,
+                &[&pda],
+            )?;
+
+            solana_program::program::invoke_signed(
+                &close_account_ix,
+                &[
+                    ctx.accounts.maker.to_account_info().clone(),
+                    pda_token_account.clone(),
+                    ctx.accounts.token_program.to_account_info().clone(),
+                ],
+                signers_seeds,
+            )?;
+        }
+
         Ok(())
     }
 }
@@ -371,7 +480,7 @@ pub struct ExchangeParams<'info> {
     token_program: Program<'info, Token>,
 }
 
-// remaining_accounts = [..maker_accounts_from, ..pda_accounts]
+// remaining_accounts = [..[maker_accounts_to, pda_accounts]]
 #[derive(Accounts)]
 pub struct CloseDealParams<'info> {
     #[account(mut)]
@@ -385,10 +494,8 @@ pub struct CloseDealParams<'info> {
 
 #[error]
 pub enum ErrorCode {
-    #[msg("No taker tokens was provided")]
-    NoTakerTokens,
-    #[msg("No maker tokens was provided")]
-    NoMakerTokens,
+    #[msg("Not enough accounts was provided")]
+    NotEnoughAccounts,
     #[msg("Bad token account")]
     BadTokenAccount,
     #[msg("Not enough maker token destination accounts was provided")]
@@ -399,6 +506,6 @@ pub enum ErrorCode {
     BadMint,
     #[msg("Bad taker account")]
     BadTaker,
-    #[msg("Taker and maker token accounts from different mint")]
-    TokenAccountsMotMatched,
+    #[msg("Token accounts from different mint")]
+    TokenAccountsNotMatched,
 }
