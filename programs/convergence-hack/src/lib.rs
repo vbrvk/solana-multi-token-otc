@@ -452,7 +452,7 @@ impl EscrowAccount {
 }
 
 // token accounts should be passed through `remaining_accounts`
-// remaining_accounts = [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..mints]
+// remaining_accounts = [..maker_accounts_from, ..maker_accounts_to, ..pda_accounts, ..maker_accounts_from_mint]
 #[derive(Accounts)]
 #[instruction(
     maker_lamports_offer: u64,

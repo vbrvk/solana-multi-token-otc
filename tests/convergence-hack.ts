@@ -160,7 +160,7 @@ describe("convergence-hack", () => {
           {
             pubkey: mintA.publicKey,
             isSigner: false,
-            isWritable: true,
+            isWritable: false,
           },
         ],
       }
