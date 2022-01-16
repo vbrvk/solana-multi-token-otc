@@ -4,6 +4,15 @@ import { TOKEN_PROGRAM_ID } from '@solana/spl-token'
 import { Wallet } from '../types'
 import { IDL, OtcIdl } from './idl'
 
+export type EscrowStateInfo = {
+  makerLockedTokens: { pubkey: PublicKey, amount: BN }[]
+  makerTokensRequest: { pubkey: PublicKey, amount: BN }[],
+  maker: PublicKey,
+  taker: PublicKey | null,
+  makerLamportsOffer: BN,
+  makerLamportsRequest: BN,
+}
+
 export class OtcContract {
   static defaultProgramId = new PublicKey('6yBt5s2MMBanRq2k9kCorgnXRjwQG5gRmboKPQ2SnjTd')
 
@@ -17,6 +26,14 @@ export class OtcContract {
   ) {
     this.provider = new Provider(connection, wallet, Provider.defaultOptions())
     this.program = new Program(IDL, programId, this.provider)
+  }
+
+  public async getEscrowState(escrowState: PublicKey): Promise<EscrowStateInfo> {
+    const escrowStateInfo = (
+      await this.program.account.escrowAccount.fetch(escrowState)
+    )
+
+    return escrowStateInfo as EscrowStateInfo
   }
 
   /**
@@ -97,17 +114,14 @@ export class OtcContract {
     takerAccountsTo: PublicKey[],
   ): Promise<TransactionSignature> {
     const escrowStateInfo = (
-      await this.program.account.escrowAccount.fetch(escrowState)
+      await this.getEscrowState(escrowState)
     )
 
-    const makerLockedTokens = escrowStateInfo.makerLockedTokens as { pubkey: PublicKey }[]
-    const makerTokensRequest = escrowStateInfo.makerTokensRequest as { pubkey: PublicKey }[]
-
-    if (takerAccountsFrom.length !== makerTokensRequest.length) {
+    if (takerAccountsFrom.length !== escrowStateInfo.makerTokensRequest.length) {
       throw new Error('Not enough takerAccountsFrom')
     }
 
-    if (takerAccountsTo.length !== makerLockedTokens.length) {
+    if (takerAccountsTo.length !== escrowStateInfo.makerLockedTokens.length) {
       throw new Error('Not enough takerAccountsTo')
     }
 
@@ -127,7 +141,7 @@ export class OtcContract {
             isWritable: true,
           },
           {
-            pubkey: makerTokensRequest[i].pubkey,
+            pubkey: escrowStateInfo.makerTokensRequest[i].pubkey,
             isSigner: false,
             isWritable: true,
           },
@@ -139,7 +153,7 @@ export class OtcContract {
             isWritable: true,
           },
           {
-            pubkey: makerLockedTokens[i].pubkey,
+            pubkey: escrowStateInfo.makerLockedTokens[i].pubkey,
             isSigner: false,
             isWritable: true,
           },
