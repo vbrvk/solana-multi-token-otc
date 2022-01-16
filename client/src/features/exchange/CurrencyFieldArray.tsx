@@ -3,7 +3,7 @@ import { Button, Col, Form, Typography } from 'antd'
 import { useAppSelector } from 'app/hooks'
 import CurrencyInput from 'features/exchange/CurrencyInput'
 import { IExchangeForm } from 'features/exchange/Exchange'
-import { exchangeSelector } from 'features/exchange/exchangeSlice'
+import { exchangeTokensSelector } from 'features/exchange/exchangeSlice'
 import React, { useCallback } from 'react'
 import { Control, Controller, useFieldArray } from 'react-hook-form'
 
@@ -16,7 +16,7 @@ interface IProps {
 }
 
 const CurrencyFieldArray: React.FC<IProps> = ({ name, control, title }) => {
-  const { tokens } = useAppSelector(exchangeSelector)
+  const { tokens } = useAppSelector(exchangeTokensSelector)
 
   const { fields, append, remove } = useFieldArray({
     control,

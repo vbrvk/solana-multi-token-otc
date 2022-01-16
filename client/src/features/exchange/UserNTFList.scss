@@ -1,0 +1,17 @@
+@import "src/scss/variables";
+
+.UserNFTList {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(120px, 1fr));
+  column-gap: 10px;
+  row-gap: 15px;
+
+  & .ant-card {
+    column-gap: 10px;
+    row-gap: 15px;
+
+    & .ant-card-body {
+      padding: 12px;
+    }
+  }
+}

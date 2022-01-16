@@ -8,6 +8,7 @@
     "@emotion/react": "^11.6.0",
     "@emotion/styled": "^11.6.0",
     "@gokiprotocol/walletkit": "^1.5.1",
+    "@nfteyez/sol-rayz": "0.8.2",
     "@project-serum/anchor": "0.20.1",
     "@reduxjs/toolkit": "1.7.1",
     "@saberhq/solana-contrib": "^1.12.20",

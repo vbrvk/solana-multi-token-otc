@@ -2,6 +2,7 @@ import { SwapOutlined } from '@ant-design/icons'
 import { Button, Form, Row } from 'antd'
 import CurrencyFieldArray from 'features/exchange/CurrencyFieldArray'
 import { IExchangeForm } from 'features/exchange/Exchange'
+import UserNTFList from 'features/exchange/UserNTFList'
 import React, { useCallback } from 'react'
 import { useForm } from 'react-hook-form'
 
@@ -37,6 +38,10 @@ const ExchangeForm: React.FC<IProps> = ({ initialValues, onSubmit }) => {
         />
 
         <CurrencyFieldArray name="receive" title="You'll receive" control={control} />
+      </div>
+
+      <div>
+        <UserNTFList />
       </div>
 
       <Row justify="center">
