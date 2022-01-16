@@ -1,0 +1,10 @@
+{
+    "maker":"CSaFN6VsPHFg9q3kN7jUDc3WQip1Hy45yqQeYJSh7Qvy",
+    "taker":"CSaFN6VsPHFg9q3kN7jUDc3WQip1Hy45yqQeYJSh7Qvy",
+    "maker_lamports_offer":10,
+    "maker_lamports_request":25,
+    "maker_tokens_request":{"h1":"value","h2":"value"},
+    "maker_locked_tokens":{"h1":"value","h2":"value"},
+    "status": "new",
+    "escrow_state_pubkey": "2jw1uFmc1hhfJH3EqGhaE2rfZMMC2YBpxkZcdUbPppMn"
+}

@@ -1,0 +1,4 @@
+__pycache__/
+logger.log
+info/
+db_config.json

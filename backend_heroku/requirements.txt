@@ -1,0 +1,14 @@
+pandas
+SQLAlchemy==1.3.23
+websockets==8.1
+fastapi==0.63.0
+uvicorn==0.12.3
+aiofiles==0.6.0
+python-multipart==0.0.5
+jinja2==2.11.2
+psycopg2
+datetime
+asyncio
+alembic
+requests
+psycopg2
