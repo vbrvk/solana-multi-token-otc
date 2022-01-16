@@ -42,6 +42,7 @@ pub mod convergence_hack {
             let maker_account_from = accounts.next();
 
             if maker_account_from.is_none() {
+                msg!("Not enough maker token accounts from");
                 return Err(ErrorCode::NotEnoughMakerTokenAccountsFrom.into());
             }
 
@@ -57,6 +58,8 @@ pub mod convergence_hack {
             let maker_account_to = accounts.next();
 
             if maker_account_to.is_none() {
+                msg!("Not enough maker token accounts to");
+
                 return Err(ErrorCode::NotEnoughMakerTokenAccountsTo.into());
             }
 
@@ -140,6 +143,11 @@ pub mod convergence_hack {
             let mint = accounts.next().unwrap();
 
             if *mint.key != maker_token_from_mint {
+                msg!(
+                    "maker_token_from_mint not math provided mint: expected {}, got {}",
+                    mint.key,
+                    maker_token_from_mint
+                );
                 return Err(ErrorCode::BadMint.into());
             }
 
@@ -503,17 +511,17 @@ pub struct CloseDealParams<'info> {
 #[error]
 pub enum ErrorCode {
     #[msg("Not enough accounts was provided")]
-    NotEnoughAccounts,
+    NotEnoughAccounts, // 0
     #[msg("Bad token account")]
-    BadTokenAccount,
+    BadTokenAccount, // 1
     #[msg("Not enough maker token destination accounts was provided")]
-    NotEnoughMakerTokenAccountsTo,
+    NotEnoughMakerTokenAccountsTo, // 2
     #[msg("Not enough maker token source accounts was provided")]
-    NotEnoughMakerTokenAccountsFrom,
+    NotEnoughMakerTokenAccountsFrom, // 3
     #[msg("Bad mint account")]
-    BadMint,
+    BadMint, // 4
     #[msg("Bad taker account")]
-    BadTaker,
+    BadTaker, // 5
     #[msg("Token accounts from different mint")]
-    TokenAccountsNotMatched,
+    TokenAccountsNotMatched, // 6
 }

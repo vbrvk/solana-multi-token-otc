@@ -24,6 +24,7 @@ export class OtcContract {
     private readonly wallet: Wallet,
     public readonly programId = OtcContract.defaultProgramId,
   ) {
+
     this.provider = new Provider(connection, wallet, Provider.defaultOptions())
     this.program = new Program(IDL, programId, this.provider)
   }
@@ -90,7 +91,7 @@ export class OtcContract {
           ...makerOffer.tokens.map(t => ({ pubkey: t.accountFrom, isSigner: false, isWritable: true })),
           ...makerRequest.tokens.map(t => ({ pubkey: t.accountTo, isSigner: false, isWritable: false })),
           ...pdaAccounts.map(pda => ({ pubkey: pda, isSigner: false, isWritable: true })),
-          ...makerOffer.tokens.map(t => ({ pubkey: t.accountFrom, isSigner: false, isWritable: false })),
+          ...makerOffer.tokens.map(t => ({ pubkey: t.mint, isSigner: false, isWritable: false })),
         ],
       },
     )
