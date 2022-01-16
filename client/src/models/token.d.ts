@@ -1,3 +1,5 @@
+import { MetadataKey } from '@nfteyez/sol-rayz/dist/config/metaplex'
+
 export interface ITokenTag {
   name: string
   description: string
@@ -61,4 +63,32 @@ export interface ITokens {
   timestamp: string
   tokens?: IToken[] | null
   version: ITokensVersion
+}
+
+export interface INFTMeta {
+  description: string
+  image: string
+  name: string
+  seller_fee_basis_points: number
+  symbol: string
+  properties?: unknown[]
+}
+
+export interface INFT {
+  mint: string;
+  updateAuthority: string;
+  data: {
+    creators: unknown[];
+    name: string;
+    symbol: string;
+    uri: string;
+    sellerFeeBasisPoints: number;
+  };
+  key: MetadataKey;
+  primarySaleHappened: boolean;
+  isMutable: boolean;
+  editionNonce: number;
+  masterEdition?: string;
+  edition?: string;
+  meta?: INFTMeta
 }

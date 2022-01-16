@@ -2,7 +2,7 @@ import { TokenInfo } from '@solana/spl-token-registry'
 import { Alert, Col, Spin, Typography } from 'antd'
 import { useAppDispatch, useAppSelector } from 'app/hooks'
 import ExchangeForm from 'features/exchange/ExchangeForm'
-import { exchangeSelector, getTokens } from 'features/exchange/exchangeSlice'
+import { exchangeTokensSelector, getTokens } from 'features/exchange/exchangeSlice'
 import React, { useCallback, useEffect, useMemo } from 'react'
 
 import './Exchange.scss'
@@ -21,7 +21,7 @@ export interface IExchangeForm {
 
 const Exchange: React.FC<IProps> = () => {
   const dispatch = useAppDispatch()
-  const { tokens, loading } = useAppSelector(exchangeSelector)
+  const { tokens, loading } = useAppSelector(exchangeTokensSelector)
 
   useEffect(() => {
     dispatch(getTokens())
